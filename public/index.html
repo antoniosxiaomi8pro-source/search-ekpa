@@ -263,10 +263,21 @@ function fuzzyVocabMatches(token){
   return out.slice(0,3); // cap: only the closest few, never a broad list
 }
 function text(p){return foldGreek(normalize([p.title,p.primary_area,(p.areas_of_study||[]).join(" "),p.description_for_matching||p.description_full,(p.tags||[]).join(" ")].join(" ")));}
-function score(p,q){
-  const variants=queryVariants(q), terms=expandQuery(q);
-  const title=foldGreek(normalize(p.title)), primaryArea=foldGreek(normalize(p.primary_area)), area=foldGreek(normalize((p.areas_of_study||[]).join(" "))), tags=foldGreek(normalize((p.tags||[]).join(" "))), all=text(p);
-  const titleTok=new Set(title.split(" ")), tagsTok=new Set(tags.split(" ")), primaryAreaTok=new Set(primaryArea.split(" ")), areaTok=new Set(area.split(" ")), allTok=new Set(all.split(" "));
+// Precomputed once per program at load time (title/area/tags/full-text + token sets).
+// score() used to recompute all of this from scratch for every program on every single
+// keystroke, which is the main reason typing felt laggy — now it's done once here.
+const PROGRAM_IDX = PROGRAMS.map(p=>{
+  const title=foldGreek(normalize(p.title)), primaryArea=foldGreek(normalize(p.primary_area)),
+        area=foldGreek(normalize((p.areas_of_study||[]).join(" "))), tags=foldGreek(normalize((p.tags||[]).join(" "))),
+        all=text(p);
+  return {
+    p, title, primaryArea, area, tags, all,
+    titleTok:new Set(title.split(" ")), tagsTok:new Set(tags.split(" ")),
+    primaryAreaTok:new Set(primaryArea.split(" ")), areaTok:new Set(area.split(" ")), allTok:new Set(all.split(" "))
+  };
+});
+function score(idx,variants,terms){
+  const {title,primaryArea,area,tags,all,titleTok,tagsTok,primaryAreaTok,areaTok,allTok}=idx;
   let s=0;
   variants.forEach(raw=>{
     if(title===raw)s+=200; if(title.includes(raw))s+=100; if(tags.includes(raw))s+=90;
@@ -283,11 +294,14 @@ function score(p,q){
 }
 function areaCounts(){const m=new Map();PROGRAMS.forEach(p=>(p.areas_of_study||[]).forEach(a=>m.set(a,(m.get(a)||0)+1)));return [...m.entries()].sort((a,b)=>b[1]-a[1]||a[0].localeCompare(b[0],"el"));}
 function getResults(){
-  let arr=PROGRAMS;
-  if(state.area) arr=arr.filter(p=>(p.areas_of_study||[]).includes(state.area));
+  let idxArr=PROGRAM_IDX;
+  if(state.area) idxArr=idxArr.filter(x=>(x.p.areas_of_study||[]).includes(state.area));
   let out;
-  if(state.q.trim().length>=2){ out = arr.map(p=>({p,s:score(p,state.q)})).filter(x=>x.s>0).sort((a,b)=>b.s-a.s).map(x=>({...x.p,_score:x.s})); }
-  else { out = arr.slice().sort((a,b)=>String(a.title).localeCompare(String(b.title),"el")).map(p=>({...p,_score:0})); }
+  if(state.q.trim().length>=2){
+    const variants=queryVariants(state.q), terms=expandQuery(state.q); // computed ONCE per keystroke, not per program
+    out = idxArr.map(x=>({p:x.p,s:score(x,variants,terms)})).filter(x=>x.s>0).sort((a,b)=>b.s-a.s).map(x=>({...x.p,_score:x.s}));
+  }
+  else { out = idxArr.map(x=>x.p).slice().sort((a,b)=>String(a.title).localeCompare(String(b.title),"el")).map(p=>({...p,_score:0})); }
   if(state.sort==="price_asc") out=out.slice().sort((a,b)=>(a.price??1e9)-(b.price??1e9));
   if(state.sort==="price_desc") out=out.slice().sort((a,b)=>(b.price??-1)-(a.price??-1));
   return out;
@@ -327,7 +341,12 @@ function render(){
     </div></article>`;
   }).join("");
 }
-document.getElementById("q").oninput=e=>{state.q=e.target.value;render();};
+let _searchDebounce=null;
+document.getElementById("q").oninput=e=>{
+  state.q=e.target.value;
+  clearTimeout(_searchDebounce);
+  _searchDebounce=setTimeout(render,120);
+};
 document.getElementById("area").onchange=e=>{state.area=e.target.value;render();};
 document.getElementById("sort").onchange=e=>{state.sort=e.target.value;render();};
 document.querySelectorAll(".chip").forEach(b=>b.onclick=()=>{state.q=b.dataset.q;document.getElementById("q").value=state.q;render();});
