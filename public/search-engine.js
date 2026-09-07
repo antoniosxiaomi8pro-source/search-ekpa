@@ -226,7 +226,11 @@
     return s;
   }
 
+  const MAX_QUERY_LENGTH = 700; // hard cap: no legitimate search needs more than this,
+  // and it bounds the cost of vocabulary fuzzy-matching (which scales with query token count).
+
   function search(programs, concepts, query, k = 40) {
+    query = String(query || "").slice(0, MAX_QUERY_LENGTH);
     const vocab = getVocabulary(programs);
     return programs
       .map((p) => ({ p, s: score(p, query, concepts, vocab) }))

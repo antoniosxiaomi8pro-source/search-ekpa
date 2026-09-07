@@ -1,1 +1,533 @@
-{"business_intelligence_analytics": ["business intelligence", "business analytics", "bi", "data analytics", "αναλυση δεδομενων", "επιχειρηματικη ευφυια", "reporting", "dashboards", "power bi", "tableau"], "cisco_networking": ["cisco", "networking", "δικτυα", "ccna", "ccnp", "network engineer", "δικτυακα"], "coaching": ["coaching", "κοουτσινγκ", "life coach", "business coach", "mentoring", "καθοδηγηση", "συμβουλευτικη σταδιοδρομιας"], "logistics": ["logistics", "εφοδιαστικη αλυσιδα", "supply chain", "αποθηκη", "μεταφορες", "distribution", "διακινηση εμπορευματων"], "marketing_sales": ["marketing", "μαρκετινγκ", "πωλησεις", "sales", "digital marketing", "branding", "διαφημιση", "advertising", "social media marketing", "seo"], "professional_skills": ["soft skills", "επαγγελματικες δεξιοτητες", "προσωπικες δεξιοτητες", "communication skills", "επικοινωνια", "ηγετικες ικανοτητες", "leadership"], "real_estate": ["real estate", "ακινητα", "κτηματομεσιτης", "εκτιμηση ακινητων", "property management", "διαχειριση ακινητων", "μεσιτης"], "security_sciences": ["ασφαλεια", "security", "εθνικη ασφαλεια", "αντιτρομοκρατια", "geopolitics", "στρατηγικες σπουδες", "intelligence analyst"], "web_development": ["web development", "προγραμματισμος ιστοσελιδων", "frontend", "backend", "full stack", "javascript", "react", "php developer", "προγραμματιστης"], "other_sectors": ["αλλοι τομεις", "διαφορα", "γενικα θεματα"], "sports": ["αθλητισμος", "αθληση", "athlisi", "athlitismos", "sports", "fitness", "personal trainer", "γυμναστικη", "αθλητικη διαχειριση", "sports management", "φυσικη αγωγη", "exercise", "προπονηση", "προπονητης"], "aesthetics_cosmetology": ["αισθητικη", "κοσμητολογια", "aesthetics", "cosmetology", "medical tattoo", "μακιγιαζ", "skincare", "spa therapist", "αισθητικος"], "data_analytics_statistics": ["στατιστικη", "statistics", "data analysis", "αναλυση δεδομενων", "data science", "spss", "αναλυτικη δεδομενων"], "cartoon_comics": ["γελοιογραφια", "σκιτσο", "κομικ", "cartoon", "comics", "illustration", "εικονογραφηση"], "geopolitics_middle_east_turkey": ["γεωπολιτικη", "μεση ανατολη", "τουρκια", "geopolitics", "middle east", "turkey", "διεθνεις σχεσεις"], "parents_family": ["γονεις", "οικογενεια", "parenting", "family", "ανατροφη παιδιων", "γονικοτητα"], "creative_writing": ["δημιουργικη γραφη", "creative writing", "επιμελεια κειμενων", "λογοτεχνια", "copywriting", "συγγραφη", "editing"], "popular_programs": ["δημοφιλη", "popular", "trending"], "public_relations_communication": ["δημοσιες σχεσεις", "pr", "public relations", "επικοινωνια", "communication", "media relations"], "nutrition_dietetics": ["διατροφη", "διαιτολογια", "nutrition", "dietetics", "diet", "dietitian", "κλινικη διατροφη", "αθληση"], "hr": ["ανθρωπινο δυναμικο", "hr", "human resources", "διοικηση προσωπικου", "recruitment", "προσληψεις", "ταλαντο"], "criminology": ["εγκληματολογια", "criminology", "εγκλημα", "forensic", "ποινικο δικαιο", "criminal justice"], "special_education": ["ειδικη αγωγη", "special education", "αυτισμος", "autism", "μαθησιακες δυσκολιες", "learning disabilities", "ειδικες εκπαιδευτικες αναγκες"], "career_guidance": ["επαγγελματικος προσανατολισμος", "career guidance", "career counseling", "συμβουλευτικη σταδιοδρομιας", "επαγγελματικη καθοδηγηση"], "entrepreneurship": ["επιχειρηματικοτητα", "entrepreneurship", "startup", "κοινωνικη επιχειρηματικοτητα", "social entrepreneurship", "νεοφυης επιχειρηση"], "business_planning_development": ["επιχειρησιακος σχεδιασμος", "business planning", "στρατηγικος σχεδιασμος", "strategic planning", "αναπτυξη επιχειρησεων", "business development"], "auditing_management": ["ελεγκτικη", "auditing", "audit", "εσωτερικος ελεγχος", "internal audit", "μανατζμεντ", "management"], "sciences": ["θετικες επιστημες", "sciences", "φυσικη", "μαθηματικα", "engineering", "μηχανικη", "φυσικες επιστημες"], "religion_church": ["θρησκεια", "εκκλησια", "religion", "church", "θεολογια", "theology", "ορθοδοξια"], "professional_skills_development_track": ["αναπτυξη δεξιοτητων", "professional development", "επαγγελματικη αναπτυξη", "upskilling", "reskilling"], "film_theatre": ["κινηματογραφος", "θεατρο", "cinema", "theatre", "film", "σεναριο", "σκηνοθεσια", "υποκριτικη", "acting"], "software_applications": ["λογισμικο", "software", "εφαρμογες", "applications", "erp", "crm", "business software"], "accounting": ["λογιστικη", "accounting", "λογιστης", "accountant", "φορολογια", "taxation", "ισολογισμοι", "bookkeeping"], "public_sector_certified": ["μοριοδοτουμενο", "δημοσιοι υπαλληλοι", "public sector", "civil servants", "μοριοδοτηση", "ασεπ"], "pedagogy_special_education_certified": ["μοριοδοτουμενο παιδαγωγικα", "παιδαγωγικα μοριοδοτηση", "ειδικη αγωγη μοριοδοτηση", "εκπαιδευτικοι μοριοδοτηση"], "music": ["μουσικη", "music", "τραγουδι", "singing", "μουσικη παραγωγη", "music production", "οργανο"], "maritime": ["ναυτιλια", "ναυτιλιακα", "maritime", "shipping", "shipping management", "ναυλωσεις", "chartering"], "law": ["νομικα", "law", "δικαιο", "legal", "paralegal", "νομικες σπουδες", "νομικος συμβουλος"], "nursing": ["νοσηλευτικη", "nursing", "νοσηλευτης", "nurse", "κλινικη νοσηλευτικη", "health care"], "foreign_languages_translation": ["ξενες γλωσσες", "αγγλικα", "γαλλικα", "γερμανικα", "translation", "μεταφραση", "interpreting", "διερμηνεια", "foreign languages"], "economic_development_greece_europe": ["οικονομικη αναπτυξη", "economic development", "ελλαδα ευρωπη", "future planning", "οικονομικη πολιτικη", "economist", "οικονομολογος", "οικονομικα", "economics"], "financial_literacy": ["χρηματοοικονομικος εγγραμματισμος", "financial literacy", "προσωπικα οικονομικα", "personal finance", "οικονομικη παιδεια"], "oenology": ["οινολογια", "οινος", "κρασι", "wine", "oenology", "αμπελουργια", "wine tasting", "sommelier"], "business_administration": ["διοικηση επιχειρησεων", "business administration", "οργανωση επιχειρησεων", "management", "επιχειρησεις", "mba"], "pedagogy": ["παιδαγωγικα", "pedagogy", "εκπαιδευση εκπαιδευτων", "διδακτικη", "teaching methods", "εκπαιδευτικος"], "environment_development": ["περιβαλλον", "environment", "βιωσιμη αναπτυξη", "sustainability", "κλιματικη αλλαγη", "climate change", "ανακυκλωση"], "it_networks_web_design": ["πληροφορικη", "it", "δικτυα", "networks", "web design", "cybersecurity", "μονταζ", "video editing", "προγραμματισμος"], "culture_extroversion": ["πολιτισμος", "culture", "εξωστρεφεια", "cultural management", "διαχειριση πολιτισμου", "heritage"], "tuv_hellas_certifications": ["tuv hellas", "tuv nord", "πιστοποιηση", "certification", "iso"], "partner_programs": ["συνεργασια", "partnership programs", "joint programs"], "personal_skills": ["προσωπικες ικανοτητες", "personal skills", "self improvement", "αυτοβελτιωση", "life skills"], "ai": ["τεχνητη νοημοσυνη", "ai", "artificial intelligence", "machine learning", "deep learning", "llm", "chatgpt", "generative ai", "prompt engineering"], "tourism": ["τουρισμος", "tourism", "ξενοδοχειακα", "hospitality", "travel", "hotel management", "τουριστικη βιομηχανια"], "health": ["υγεια", "health", "ιατρικη", "medical", "healthcare", "κλινικες σπουδες"], "philosophy": ["φιλοσοφια", "philosophy", "ηθικη", "ethics", "λογικη", "φιλοσοφικη σκεψη"], "photography": ["φωτογραφια", "photography", "φωτογραφος", "photographer", "photo editing", "επεξεργασια φωτογραφιας"], "finance_banking": ["χρηματοοικονομικα", "finance", "τραπεζικη", "banking", "επενδυσεις", "investments", "χρηματιστηριο", "stock market"], "digital_skills_future": ["ψηφιακες δεξιοτητες", "digital skills", "future skills", "ψηφιακος αλφαβητισμος", "digital literacy"], "digital_transformation": ["ψηφιακος μετασχηματισμος", "digital transformation", "blockchain", "ψηφιοποιηση", "digitalization"], "psychology_psychiatry": ["ψυχολογια", "psychology", "ψυχιατρικη", "psychiatry", "mental health", "ψυχικη υγεια", "therapy", "θεραπεια", "συμβουλευτικη ψυχολογια"]}
+{
+  "business_intelligence_analytics": [
+    "business intelligence",
+    "business analytics",
+    "bi",
+    "data analytics",
+    "αναλυση δεδομενων",
+    "επιχειρηματικη ευφυια",
+    "reporting",
+    "dashboards",
+    "power bi",
+    "tableau"
+  ],
+  "cisco_networking": [
+    "cisco",
+    "networking",
+    "δικτυα",
+    "ccna",
+    "ccnp",
+    "network engineer",
+    "δικτυακα"
+  ],
+  "coaching": [
+    "coaching",
+    "κοουτσινγκ",
+    "life coach",
+    "business coach",
+    "mentoring",
+    "καθοδηγηση",
+    "συμβουλευτικη σταδιοδρομιας"
+  ],
+  "logistics": [
+    "logistics",
+    "εφοδιαστικη αλυσιδα",
+    "supply chain",
+    "αποθηκη",
+    "μεταφορες",
+    "distribution",
+    "διακινηση εμπορευματων"
+  ],
+  "marketing_sales": [
+    "marketing",
+    "μαρκετινγκ",
+    "πωλησεις",
+    "sales",
+    "digital marketing",
+    "branding",
+    "διαφημιση",
+    "advertising",
+    "social media marketing",
+    "seo"
+  ],
+  "professional_skills": [
+    "soft skills",
+    "επαγγελματικες δεξιοτητες",
+    "προσωπικες δεξιοτητες",
+    "communication skills",
+    "επικοινωνια",
+    "ηγετικες ικανοτητες",
+    "leadership"
+  ],
+  "real_estate": [
+    "real estate",
+    "ακινητα",
+    "κτηματομεσιτης",
+    "εκτιμηση ακινητων",
+    "property management",
+    "διαχειριση ακινητων",
+    "μεσιτης"
+  ],
+  "security_sciences": [
+    "ασφαλεια",
+    "security",
+    "εθνικη ασφαλεια",
+    "αντιτρομοκρατια",
+    "geopolitics",
+    "στρατηγικες σπουδες",
+    "intelligence analyst"
+  ],
+  "web_development": [
+    "web development",
+    "προγραμματισμος ιστοσελιδων",
+    "frontend",
+    "backend",
+    "full stack",
+    "javascript",
+    "react",
+    "php developer",
+    "προγραμματιστης"
+  ],
+  "other_sectors": [
+    "αλλοι τομεις",
+    "διαφορα",
+    "γενικα θεματα"
+  ],
+  "sports": [
+    "αθλητισμος",
+    "αθληση",
+    "athlisi",
+    "athlitismos",
+    "sports",
+    "fitness",
+    "personal trainer",
+    "γυμναστικη",
+    "αθλητικη διαχειριση",
+    "sports management",
+    "φυσικη αγωγη",
+    "exercise",
+    "προπονηση",
+    "προπονητης"
+  ],
+  "aesthetics_cosmetology": [
+    "αισθητικη",
+    "κοσμητολογια",
+    "aesthetics",
+    "cosmetology",
+    "medical tattoo",
+    "μακιγιαζ",
+    "skincare",
+    "spa therapist",
+    "αισθητικος"
+  ],
+  "data_analytics_statistics": [
+    "στατιστικη",
+    "statistics",
+    "data analysis",
+    "αναλυση δεδομενων",
+    "data science",
+    "spss",
+    "αναλυτικη δεδομενων"
+  ],
+  "cartoon_comics": [
+    "γελοιογραφια",
+    "σκιτσο",
+    "κομικ",
+    "cartoon",
+    "comics",
+    "illustration",
+    "εικονογραφηση"
+  ],
+  "geopolitics_middle_east_turkey": [
+    "γεωπολιτικη",
+    "μεση ανατολη",
+    "τουρκια",
+    "geopolitics",
+    "middle east",
+    "turkey",
+    "διεθνεις σχεσεις"
+  ],
+  "parents_family": [
+    "γονεις",
+    "οικογενεια",
+    "parenting",
+    "family",
+    "ανατροφη παιδιων",
+    "γονικοτητα"
+  ],
+  "creative_writing": [
+    "δημιουργικη γραφη",
+    "creative writing",
+    "επιμελεια κειμενων",
+    "λογοτεχνια",
+    "copywriting",
+    "συγγραφη",
+    "editing"
+  ],
+  "popular_programs": [
+    "δημοφιλη",
+    "popular",
+    "trending"
+  ],
+  "public_relations_communication": [
+    "δημοσιες σχεσεις",
+    "pr",
+    "public relations",
+    "επικοινωνια",
+    "communication",
+    "media relations"
+  ],
+  "nutrition_dietetics": [
+    "διατροφη",
+    "διαιτολογια",
+    "nutrition",
+    "dietetics",
+    "diet",
+    "dietitian",
+    "κλινικη διατροφη",
+    "αθληση"
+  ],
+  "hr": [
+    "ανθρωπινο δυναμικο",
+    "hr",
+    "human resources",
+    "διοικηση προσωπικου",
+    "recruitment",
+    "προσληψεις",
+    "ταλαντο"
+  ],
+  "criminology": [
+    "εγκληματολογια",
+    "criminology",
+    "εγκλημα",
+    "forensic",
+    "ποινικο δικαιο",
+    "criminal justice"
+  ],
+  "special_education": [
+    "ειδικη αγωγη",
+    "special education",
+    "αυτισμος",
+    "autism",
+    "μαθησιακες δυσκολιες",
+    "learning disabilities",
+    "ειδικες εκπαιδευτικες αναγκες"
+  ],
+  "career_guidance": [
+    "επαγγελματικος προσανατολισμος",
+    "career guidance",
+    "career counseling",
+    "συμβουλευτικη σταδιοδρομιας",
+    "επαγγελματικη καθοδηγηση"
+  ],
+  "entrepreneurship": [
+    "επιχειρηματικοτητα",
+    "entrepreneurship",
+    "startup",
+    "κοινωνικη επιχειρηματικοτητα",
+    "social entrepreneurship",
+    "νεοφυης επιχειρηση"
+  ],
+  "business_planning_development": [
+    "επιχειρησιακος σχεδιασμος",
+    "business planning",
+    "στρατηγικος σχεδιασμος",
+    "strategic planning",
+    "αναπτυξη επιχειρησεων",
+    "business development"
+  ],
+  "auditing_management": [
+    "ελεγκτικη",
+    "auditing",
+    "audit",
+    "εσωτερικος ελεγχος",
+    "internal audit",
+    "μανατζμεντ",
+    "management"
+  ],
+  "sciences": [
+    "θετικες επιστημες",
+    "sciences",
+    "φυσικη",
+    "μαθηματικα",
+    "engineering",
+    "μηχανικη",
+    "φυσικες επιστημες"
+  ],
+  "religion_church": [
+    "θρησκεια",
+    "εκκλησια",
+    "religion",
+    "church",
+    "θεολογια",
+    "theology",
+    "ορθοδοξια"
+  ],
+  "professional_skills_development_track": [
+    "αναπτυξη δεξιοτητων",
+    "professional development",
+    "επαγγελματικη αναπτυξη",
+    "upskilling",
+    "reskilling"
+  ],
+  "film_theatre": [
+    "κινηματογραφος",
+    "θεατρο",
+    "cinema",
+    "theatre",
+    "film",
+    "σεναριο",
+    "σκηνοθεσια",
+    "υποκριτικη",
+    "acting"
+  ],
+  "software_applications": [
+    "λογισμικο",
+    "software",
+    "εφαρμογες",
+    "applications",
+    "erp",
+    "crm",
+    "business software"
+  ],
+  "accounting": [
+    "λογιστικη",
+    "accounting",
+    "λογιστης",
+    "accountant",
+    "φορολογια",
+    "taxation",
+    "ισολογισμοι",
+    "bookkeeping"
+  ],
+  "public_sector_certified": [
+    "μοριοδοτουμενο",
+    "δημοσιοι υπαλληλοι",
+    "public sector",
+    "civil servants",
+    "μοριοδοτηση",
+    "ασεπ"
+  ],
+  "pedagogy_special_education_certified": [
+    "μοριοδοτουμενο παιδαγωγικα",
+    "παιδαγωγικα μοριοδοτηση",
+    "ειδικη αγωγη μοριοδοτηση",
+    "εκπαιδευτικοι μοριοδοτηση"
+  ],
+  "music": [
+    "μουσικη",
+    "music",
+    "τραγουδι",
+    "singing",
+    "μουσικη παραγωγη",
+    "music production",
+    "οργανο"
+  ],
+  "maritime": [
+    "ναυτιλια",
+    "ναυτιλιακα",
+    "maritime",
+    "shipping",
+    "shipping management",
+    "ναυλωσεις",
+    "chartering"
+  ],
+  "law": [
+    "νομικα",
+    "law",
+    "δικαιο",
+    "legal",
+    "paralegal",
+    "νομικες σπουδες",
+    "νομικος συμβουλος"
+  ],
+  "nursing": [
+    "νοσηλευτικη",
+    "nursing",
+    "νοσηλευτης",
+    "nurse",
+    "κλινικη νοσηλευτικη",
+    "health care"
+  ],
+  "foreign_languages_translation": [
+    "ξενες γλωσσες",
+    "αγγλικα",
+    "γαλλικα",
+    "γερμανικα",
+    "translation",
+    "μεταφραση",
+    "interpreting",
+    "διερμηνεια",
+    "foreign languages"
+  ],
+  "economic_development_greece_europe": [
+    "οικονομικη αναπτυξη",
+    "economic development",
+    "ελλαδα ευρωπη",
+    "future planning",
+    "οικονομικη πολιτικη",
+    "economist",
+    "οικονομολογος",
+    "οικονομικα",
+    "economics"
+  ],
+  "financial_literacy": [
+    "χρηματοοικονομικος εγγραμματισμος",
+    "financial literacy",
+    "προσωπικα οικονομικα",
+    "personal finance",
+    "οικονομικη παιδεια"
+  ],
+  "oenology": [
+    "οινολογια",
+    "οινος",
+    "κρασι",
+    "wine",
+    "oenology",
+    "αμπελουργια",
+    "wine tasting",
+    "sommelier"
+  ],
+  "business_administration": [
+    "διοικηση επιχειρησεων",
+    "business administration",
+    "οργανωση επιχειρησεων",
+    "management",
+    "επιχειρησεις",
+    "mba"
+  ],
+  "pedagogy": [
+    "παιδαγωγικα",
+    "pedagogy",
+    "εκπαιδευση εκπαιδευτων",
+    "διδακτικη",
+    "teaching methods",
+    "εκπαιδευτικος"
+  ],
+  "environment_development": [
+    "περιβαλλον",
+    "environment",
+    "βιωσιμη αναπτυξη",
+    "sustainability",
+    "κλιματικη αλλαγη",
+    "climate change",
+    "ανακυκλωση"
+  ],
+  "it_networks_web_design": [
+    "πληροφορικη",
+    "it",
+    "δικτυα",
+    "networks",
+    "web design",
+    "cybersecurity",
+    "μονταζ",
+    "video editing",
+    "προγραμματισμος"
+  ],
+  "culture_extroversion": [
+    "πολιτισμος",
+    "culture",
+    "εξωστρεφεια",
+    "cultural management",
+    "διαχειριση πολιτισμου",
+    "heritage"
+  ],
+  "tuv_hellas_certifications": [
+    "tuv hellas",
+    "tuv nord",
+    "πιστοποιηση",
+    "certification",
+    "iso"
+  ],
+  "partner_programs": [
+    "συνεργασια",
+    "partnership programs",
+    "joint programs"
+  ],
+  "personal_skills": [
+    "προσωπικες ικανοτητες",
+    "personal skills",
+    "self improvement",
+    "αυτοβελτιωση",
+    "life skills"
+  ],
+  "ai": [
+    "τεχνητη νοημοσυνη",
+    "ai",
+    "artificial intelligence",
+    "machine learning",
+    "deep learning",
+    "llm",
+    "chatgpt",
+    "generative ai",
+    "prompt engineering"
+  ],
+  "tourism": [
+    "τουρισμος",
+    "tourism",
+    "ξενοδοχειακα",
+    "hospitality",
+    "travel",
+    "hotel management",
+    "τουριστικη βιομηχανια"
+  ],
+  "health": [
+    "υγεια",
+    "health",
+    "ιατρικη",
+    "medical",
+    "healthcare",
+    "κλινικες σπουδες"
+  ],
+  "philosophy": [
+    "φιλοσοφια",
+    "philosophy",
+    "ηθικη",
+    "ethics",
+    "λογικη",
+    "φιλοσοφικη σκεψη"
+  ],
+  "photography": [
+    "φωτογραφια",
+    "photography",
+    "φωτογραφος",
+    "photographer",
+    "photo editing",
+    "επεξεργασια φωτογραφιας"
+  ],
+  "finance_banking": [
+    "χρηματοοικονομικα",
+    "finance",
+    "τραπεζικη",
+    "banking",
+    "επενδυσεις",
+    "investments",
+    "χρηματιστηριο",
+    "stock market"
+  ],
+  "digital_skills_future": [
+    "ψηφιακες δεξιοτητες",
+    "digital skills",
+    "future skills",
+    "ψηφιακος αλφαβητισμος",
+    "digital literacy"
+  ],
+  "digital_transformation": [
+    "ψηφιακος μετασχηματισμος",
+    "digital transformation",
+    "blockchain",
+    "ψηφιοποιηση",
+    "digitalization"
+  ],
+  "psychology_psychiatry": [
+    "ψυχολογια",
+    "psychology",
+    "ψυχιατρικη",
+    "psychiatry",
+    "mental health",
+    "ψυχικη υγεια",
+    "therapy",
+    "θεραπεια",
+    "συμβουλευτικη ψυχολογια"
+  ]
+}

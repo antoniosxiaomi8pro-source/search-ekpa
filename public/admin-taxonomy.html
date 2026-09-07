@@ -1,0 +1,247 @@
+<!doctype html>
+<html lang="el">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>EKPA Smart Finder — Διαχείριση Taxonomy</title>
+<style>
+:root{--blue:#0b4f8a;--dark:#073965;--bg:#f5f7fa;--border:#dfe5ec;--text:#17212b;--muted:#667085;--green:#087443;--amber:#a15c00;--red:#b3261e}
+*{box-sizing:border-box}
+body{margin:0;font-family:Arial,Helvetica,sans-serif;background:var(--bg);color:var(--text)}
+.hero{background:linear-gradient(135deg,var(--dark),var(--blue));color:white;padding:28px 20px}
+.hero-inner{max-width:1100px;margin:auto;display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap}
+.hero h1{margin:0 0 4px;font-size:24px}
+.hero p{margin:0;font-size:14px;opacity:.9}
+.wrapper{max-width:1100px;margin:-14px auto 40px;padding:0 20px}
+.panel{background:white;border:1px solid var(--border);border-radius:16px;padding:18px;box-shadow:0 12px 30px rgba(16,24,40,.10);margin-bottom:18px}
+.lock-row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.lock-row input[type=password]{flex:1;min-width:220px;border:1px solid var(--border);border-radius:10px;padding:12px 14px;font-size:14px}
+.btn{border:none;border-radius:10px;padding:11px 18px;font-size:14px;font-weight:bold;cursor:pointer}
+.btn-primary{background:var(--blue);color:#fff}
+.btn-primary:hover{background:var(--dark)}
+.btn-secondary{background:#eef2f6;color:var(--text)}
+.btn-danger{background:#fdecec;color:var(--red)}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.status{font-size:13px;margin-top:8px;padding:8px 12px;border-radius:8px;display:none}
+.status.ok{display:block;background:#ecfdf3;color:var(--green)}
+.status.err{display:block;background:#fdecec;color:var(--red)}
+.status.info{display:block;background:#eef4ff;color:#1849a9}
+.toolbar{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:14px;flex-wrap:wrap}
+.toolbar input[type=search]{flex:1;min-width:200px;border:1px solid var(--border);border-radius:10px;padding:11px 14px;font-size:14px}
+.counter{font-size:13px;color:var(--muted)}
+.concept-card{border:1px solid var(--border);border-radius:14px;padding:14px 16px;margin-bottom:12px;background:#fff}
+.concept-head{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:10px}
+.concept-key{font-weight:bold;font-size:14.5px;font-family:Menlo,Consolas,monospace;color:var(--dark)}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}
+.chip{display:flex;align-items:center;gap:6px;background:#eef4ff;color:#1849a9;border-radius:999px;padding:5px 6px 5px 12px;font-size:12.5px}
+.chip button{border:none;background:rgba(0,0,0,.08);color:#1849a9;border-radius:50%;width:18px;height:18px;line-height:18px;text-align:center;cursor:pointer;font-size:12px;padding:0}
+.add-term-row{display:flex;gap:6px}
+.add-term-row input{flex:1;border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-size:13px}
+.add-term-row button{border:none;background:var(--blue);color:#fff;border-radius:8px;padding:0 12px;cursor:pointer;font-size:13px}
+.new-concept-form{display:flex;gap:8px;flex-wrap:wrap}
+.new-concept-form input{border:1px solid var(--border);border-radius:10px;padding:11px 14px;font-size:14px}
+.new-concept-form input[name=key]{flex:1;min-width:180px;font-family:Menlo,Consolas,monospace}
+.new-concept-form input[name=terms]{flex:2;min-width:240px}
+.locked-note{font-size:13px;color:var(--muted)}
+.hint{font-size:12px;color:var(--muted);margin-top:4px}
+</style>
+</head>
+<body>
+<header class="hero"><div class="hero-inner">
+  <div>
+    <h1>🏷️ Διαχείριση Taxonomy</h1>
+    <p>Concepts &amp; λέξεις-κλειδιά για το EKPA Smart Finder — <a href="index.html" style="color:#fff">← πίσω στην αναζήτηση</a></p>
+  </div>
+  <div id="lockStatus" class="counter"></div>
+</div></header>
+
+<main class="wrapper">
+
+  <section class="panel">
+    <div class="lock-row">
+      <input type="password" id="tokenInput" placeholder="Admin token για αποθήκευση…" autocomplete="off">
+      <button class="btn btn-secondary" id="unlockBtn">Ξεκλείδωμα</button>
+      <span class="locked-note">Χωρίς token μπορείς να δεις τα πάντα, αλλά όχι να αποθηκεύσεις.</span>
+    </div>
+    <div id="globalStatus" class="status"></div>
+  </section>
+
+  <section class="panel">
+    <div class="toolbar">
+      <input type="search" id="filterInput" placeholder="Φίλτρο concepts/λέξεων…">
+      <span class="counter" id="counter"></span>
+      <button class="btn btn-primary" id="saveBtn" disabled>💾 Αποθήκευση όλων</button>
+    </div>
+    <div id="conceptsList">Φόρτωση…</div>
+  </section>
+
+  <section class="panel">
+    <h3 style="margin-top:0">➕ Νέο concept</h3>
+    <form class="new-concept-form" id="newConceptForm">
+      <input name="key" placeholder="π.χ. culinary_arts" required>
+      <input name="terms" placeholder="λέξεις-κλειδιά χωρισμένες με κόμμα, π.χ. μαγειρικη, culinary, chef" required>
+      <button class="btn btn-primary" type="submit">Προσθήκη concept</button>
+    </form>
+    <div class="hint">Το key γίνεται αυτόματα lowercase με underscores. Χρειάζεται τουλάχιστον 1 λέξη-κλειδί.</div>
+  </section>
+
+</main>
+
+<script>
+let concepts = {};   // working copy in memory
+let dirty = false;
+let adminToken = "";
+
+const conceptsListEl = document.getElementById("conceptsList");
+const statusEl = document.getElementById("globalStatus");
+const saveBtn = document.getElementById("saveBtn");
+const counterEl = document.getElementById("counter");
+const lockStatusEl = document.getElementById("lockStatus");
+
+function showStatus(msg, type) {
+  statusEl.textContent = msg;
+  statusEl.className = "status " + type;
+  if (type === "ok") setTimeout(() => { statusEl.className = "status"; }, 4000);
+}
+
+function markDirty() {
+  dirty = true;
+  saveBtn.disabled = !adminToken;
+  saveBtn.textContent = "💾 Αποθήκευση όλων (μη αποθηκευμένες αλλαγές)";
+}
+
+function esc(s) {
+  return String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+}
+
+function render(filter) {
+  const f = (filter || "").toLowerCase().trim();
+  const keys = Object.keys(concepts).sort();
+  const shown = keys.filter(k => {
+    if (!f) return true;
+    if (k.toLowerCase().includes(f)) return true;
+    return (concepts[k] || []).some(t => t.toLowerCase().includes(f));
+  });
+  counterEl.textContent = `${shown.length} / ${keys.length} concepts`;
+  if (!shown.length) {
+    conceptsListEl.innerHTML = '<p style="color:var(--muted)">Κανένα concept δεν ταιριάζει με το φίλτρο.</p>';
+    return;
+  }
+  conceptsListEl.innerHTML = shown.map(key => {
+    const terms = concepts[key] || [];
+    const chips = terms.map((t, i) =>
+      `<span class="chip">${esc(t)}<button type="button" data-key="${esc(key)}" data-idx="${i}" class="removeTermBtn" title="Αφαίρεση">×</button></span>`
+    ).join("");
+    return `<div class="concept-card" data-key="${esc(key)}">
+      <div class="concept-head">
+        <span class="concept-key">${esc(key)}</span>
+        <button type="button" class="btn btn-danger deleteConceptBtn" data-key="${esc(key)}">Διαγραφή concept</button>
+      </div>
+      <div class="chips">${chips || '<span style="color:var(--muted);font-size:12.5px">(καμία λέξη ακόμα)</span>'}</div>
+      <div class="add-term-row">
+        <input type="text" placeholder="νέα λέξη-κλειδί…" class="newTermInput" data-key="${esc(key)}">
+        <button type="button" class="addTermBtn" data-key="${esc(key)}">Προσθήκη</button>
+      </div>
+    </div>`;
+  }).join("");
+}
+
+// ---- event delegation ----
+conceptsListEl.addEventListener("click", (e) => {
+  const rm = e.target.closest(".removeTermBtn");
+  if (rm) {
+    const key = rm.dataset.key, idx = Number(rm.dataset.idx);
+    concepts[key].splice(idx, 1);
+    markDirty();
+    render(document.getElementById("filterInput").value);
+    return;
+  }
+  const del = e.target.closest(".deleteConceptBtn");
+  if (del) {
+    if (!confirm(`Σίγουρα διαγραφή του concept "${del.dataset.key}"; Αυτό αφαιρεί όλες τις λέξεις-κλειδιά του.`)) return;
+    delete concepts[del.dataset.key];
+    markDirty();
+    render(document.getElementById("filterInput").value);
+    return;
+  }
+  const add = e.target.closest(".addTermBtn");
+  if (add) {
+    const key = add.dataset.key;
+    const input = conceptsListEl.querySelector(`.newTermInput[data-key="${CSS.escape(key)}"]`);
+    const val = (input.value || "").trim();
+    if (!val) return;
+    concepts[key] = concepts[key] || [];
+    if (concepts[key].includes(val)) { showStatus("Η λέξη υπάρχει ήδη σε αυτό το concept.", "info"); return; }
+    concepts[key].push(val);
+    markDirty();
+    render(document.getElementById("filterInput").value);
+  }
+});
+conceptsListEl.addEventListener("keydown", (e) => {
+  if (e.key === "Enter" && e.target.classList.contains("newTermInput")) {
+    e.preventDefault();
+    e.target.nextElementSibling.click();
+  }
+});
+
+document.getElementById("filterInput").addEventListener("input", (e) => render(e.target.value));
+
+document.getElementById("newConceptForm").addEventListener("submit", (e) => {
+  e.preventDefault();
+  const fd = new FormData(e.target);
+  let key = String(fd.get("key") || "").trim().toLowerCase().replace(/[^a-z0-9_]+/g, "_").replace(/^_+|_+$/g, "");
+  const terms = String(fd.get("terms") || "").split(",").map(s => s.trim()).filter(Boolean);
+  if (!key || !terms.length) { showStatus("Χρειάζεται έγκυρο key και τουλάχιστον μία λέξη-κλειδί.", "err"); return; }
+  if (concepts[key]) { showStatus(`Το concept "${key}" υπάρχει ήδη.`, "err"); return; }
+  concepts[key] = terms;
+  markDirty();
+  render(document.getElementById("filterInput").value);
+  e.target.reset();
+  showStatus(`Προστέθηκε το concept "${key}".`, "ok");
+});
+
+document.getElementById("unlockBtn").addEventListener("click", () => {
+  const val = document.getElementById("tokenInput").value;
+  if (!val) { showStatus("Βάλε πρώτα το admin token.", "err"); return; }
+  adminToken = val;
+  lockStatusEl.textContent = "🔓 Ξεκλειδωμένο για αποθήκευση";
+  saveBtn.disabled = !dirty;
+  showStatus("Token αποθηκεύτηκε για αυτή τη σελίδα (όχι μόνιμα) — μπορείς να αποθηκεύσεις αλλαγές.", "ok");
+});
+
+saveBtn.addEventListener("click", async () => {
+  if (!adminToken) { showStatus("Χρειάζεται να ξεκλειδώσεις πρώτα με το admin token.", "err"); return; }
+  saveBtn.disabled = true;
+  saveBtn.textContent = "Αποθήκευση…";
+  try {
+    const resp = await fetch("/api/admin/concepts", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-admin-token": adminToken },
+      body: JSON.stringify(concepts),
+    });
+    const data = await resp.json().catch(() => null);
+    if (!resp.ok) throw new Error((data && data.error) || `HTTP ${resp.status}`);
+    dirty = false;
+    saveBtn.textContent = "💾 Αποθήκευση όλων";
+    showStatus(`Αποθηκεύτηκε! (${data.concepts_count} concepts)`, "ok");
+  } catch (err) {
+    showStatus("Αποτυχία αποθήκευσης: " + err.message, "err");
+    saveBtn.textContent = "💾 Αποθήκευση όλων (μη αποθηκευμένες αλλαγές)";
+  } finally {
+    saveBtn.disabled = !adminToken;
+  }
+});
+
+// ---- initial load ----
+(async function init() {
+  try {
+    const resp = await fetch("concepts.json");
+    concepts = await resp.json();
+    render("");
+  } catch (err) {
+    conceptsListEl.innerHTML = '<p style="color:var(--red)">Αποτυχία φόρτωσης concepts.json: ' + esc(err.message) + '</p>';
+  }
+})();
+</script>
+</body>
+</html>
