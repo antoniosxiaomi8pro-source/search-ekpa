@@ -15,6 +15,76 @@ const EkpaSearch = require("../public/search-engine.js");
 const PROGRAMS = JSON.parse(fs.readFileSync(path.join(__dirname, "../public/programs.json"), "utf-8"));
 let CONCEPTS = JSON.parse(fs.readFileSync(path.join(__dirname, "../public/concepts.json"), "utf-8"));
 const CONCEPTS_PATH = path.join(__dirname, "../public/concepts.json");
+const PROGRAMS_BY_ID = {};
+PROGRAMS.forEach((p) => { PROGRAMS_BY_ID[p.id] = p; });
+
+// ---- Analytics: search & click visibility (Phase 1 — reporting only, does NOT
+// affect /api/search ranking yet; see HANDOVER-NOTES.md for the planned Phase 2). ----
+// Stored as a flat JSON file, same pattern as concepts.json — no database needed at
+// this scale. Kept in memory for speed, flushed to disk periodically (not on every
+// request) so normal traffic doesn't hammer the filesystem.
+const ANALYTICS_PATH = path.join(__dirname, "analytics.json");
+const ANALYTICS_MAX_QUERIES = 300; // bounds file size — evicts the least-searched query when full
+const ANALYTICS_FLUSH_MS = 30 * 1000;
+let analyticsQueries = {};
+try {
+  analyticsQueries = JSON.parse(fs.readFileSync(ANALYTICS_PATH, "utf-8"));
+} catch (e) {
+  analyticsQueries = {}; // first run, or file doesn't exist yet — start fresh
+}
+let analyticsDirty = false;
+
+function normalizeAnalyticsQuery(q) {
+  return String(q || "").trim().toLowerCase().slice(0, 200);
+}
+
+function getOrCreateQueryEntry(q) {
+  if (analyticsQueries[q]) return analyticsQueries[q];
+  const keys = Object.keys(analyticsQueries);
+  if (keys.length >= ANALYTICS_MAX_QUERIES) {
+    // Evict the least-searched entry to make room — simple, bounded, no external deps.
+    let worstKey = keys[0];
+    keys.forEach((k) => { if (analyticsQueries[k].count < analyticsQueries[worstKey].count) worstKey = k; });
+    delete analyticsQueries[worstKey];
+  }
+  analyticsQueries[q] = { count: 0, zero_result: 0, clicks: {}, last_seen: null };
+  return analyticsQueries[q];
+}
+
+function trackSearch(rawQuery, resultCount) {
+  const q = normalizeAnalyticsQuery(rawQuery);
+  if (!q) return;
+  const entry = getOrCreateQueryEntry(q);
+  entry.count += 1;
+  if (resultCount === 0) entry.zero_result += 1;
+  entry.last_seen = new Date().toISOString();
+  analyticsDirty = true;
+}
+
+function trackClick(rawQuery, programId) {
+  const q = normalizeAnalyticsQuery(rawQuery);
+  const entry = getOrCreateQueryEntry(q || "(χωρίς query)");
+  entry.clicks[programId] = (entry.clicks[programId] || 0) + 1;
+  entry.last_seen = new Date().toISOString();
+  analyticsDirty = true;
+}
+
+function flushAnalytics() {
+  if (!analyticsDirty) return;
+  analyticsDirty = false;
+  try {
+    // Synchronous on purpose: this also runs from the SIGTERM/SIGINT handler right
+    // before process.exit(), where an async writeFile would race the exit and could
+    // leave the file empty/truncated on a fast redeploy restart.
+    fs.writeFileSync(ANALYTICS_PATH, JSON.stringify(analyticsQueries));
+  } catch (err) {
+    console.error("Αποτυχία αποθήκευσης analytics.json:", err);
+  }
+}
+setInterval(flushAnalytics, ANALYTICS_FLUSH_MS);
+for (const sig of ["SIGTERM", "SIGINT"]) {
+  process.on(sig, () => { flushAnalytics(); process.exit(0); });
+}
 
 const PORT = process.env.PORT || 8787;
 // Choose provider with LLM_PROVIDER=anthropic|openai|gemini in your .env
@@ -79,6 +149,15 @@ const adminLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: "Πολλά αιτήματα admin — δοκίμασε ξανά σε λίγο." },
+});
+// Public (no auth) but generously rate-limited — this only increments a counter,
+// no LLM call, no filesystem read per request, so it's cheap to allow generously.
+const trackLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  limit: Number(process.env.TRACK_RATE_LIMIT_PER_MIN || 120),
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Πολλά αιτήματα tracking — δοκίμασε ξανά σε λίγο." },
 });
 
 const app = express();
@@ -195,7 +274,21 @@ app.post("/api/chat", chatLimiter, async (req, res) => {
 // Plain retrieval endpoint too, in case the frontend ever wants search without chat
 app.get("/api/search", searchLimiter, (req, res) => {
   const q = req.query.q || "";
-  res.json(EkpaSearch.search(PROGRAMS, CONCEPTS, q, 40));
+  const results = EkpaSearch.search(PROGRAMS, CONCEPTS, q, 40);
+  trackSearch(q, results.length); // visibility only — does not affect ranking (see analytics comment above)
+  res.json(results);
+});
+
+// Called by the frontend (and the GTM widget) right when a user clicks a result,
+// so we know which program a given search query ultimately led to. Fire-and-forget
+// from the client (sendBeacon/fetch), no response body needed beyond ok:true.
+app.post("/api/track-click", trackLimiter, (req, res) => {
+  const { query, program_id } = req.body || {};
+  if (!program_id || !PROGRAMS_BY_ID[program_id]) {
+    return res.status(400).json({ error: "Άγνωστο ή απόν program_id." });
+  }
+  trackClick(query, String(program_id));
+  res.json({ ok: true });
 });
 
 // Full catalog endpoint — PROGRAMS is already parsed once at startup (see top of
@@ -259,6 +352,47 @@ app.post("/api/admin/concepts", adminLimiter, checkAdminToken, (req, res) => {
     console.error("Αποτυχία εγγραφής concepts.json:", err);
     res.status(500).json({ error: "Αποτυχία αποθήκευσης στον server." });
   }
+});
+
+// ---- Admin: analytics visibility (Phase 1 — read-only, see HANDOVER-NOTES.md) ----
+// Aggregates the raw per-query store into three views: top queries by volume,
+// queries that returned zero results (candidates for new taxonomy concepts), and
+// the most-clicked programs overall (across all queries).
+app.get("/api/admin/analytics", adminLimiter, checkAdminToken, (req, res) => {
+  const entries = Object.entries(analyticsQueries);
+
+  const topQueries = entries
+    .map(([query, e]) => ({ query, count: e.count, zero_result: e.zero_result, last_seen: e.last_seen }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 100);
+
+  const zeroResultQueries = entries
+    .filter(([, e]) => e.zero_result > 0)
+    .map(([query, e]) => ({ query, zero_result: e.zero_result, count: e.count, last_seen: e.last_seen }))
+    .sort((a, b) => b.zero_result - a.zero_result)
+    .slice(0, 100);
+
+  const clicksByProgram = {};
+  entries.forEach(([query, e]) => {
+    Object.entries(e.clicks).forEach(([programId, n]) => {
+      if (!clicksByProgram[programId]) {
+        const p = PROGRAMS_BY_ID[programId];
+        clicksByProgram[programId] = { program_id: programId, title: p ? p.title : "(άγνωστο πρόγραμμα)", clicks: 0, from_queries: [] };
+      }
+      clicksByProgram[programId].clicks += n;
+      clicksByProgram[programId].from_queries.push({ query, clicks: n });
+    });
+  });
+  const topClickedPrograms = Object.values(clicksByProgram)
+    .sort((a, b) => b.clicks - a.clicks)
+    .slice(0, 100);
+
+  res.json({
+    tracked_queries_total: entries.length,
+    top_queries: topQueries,
+    zero_result_queries: zeroResultQueries,
+    top_clicked_programs: topClickedPrograms,
+  });
 });
 
 // CORS errors thrown by corsOriginCheck land here instead of crashing the process.

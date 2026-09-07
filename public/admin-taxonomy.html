@@ -44,6 +44,16 @@ body{margin:0;font-family:Arial,Helvetica,sans-serif;background:var(--bg);color:
 .new-concept-form input[name=terms]{flex:2;min-width:240px}
 .locked-note{font-size:13px;color:var(--muted)}
 .hint{font-size:12px;color:var(--muted);margin-top:4px}
+.tabs{display:flex;gap:8px;margin-bottom:14px}
+.tab-btn{border:1px solid var(--border);background:#fff;color:var(--text);border-radius:10px;padding:9px 16px;font-size:14px;cursor:pointer}
+.tab-btn.active{background:var(--blue);color:#fff;border-color:var(--blue)}
+table.data-table{width:100%;border-collapse:collapse;font-size:13.5px}
+table.data-table th{text-align:left;padding:8px 10px;border-bottom:2px solid var(--border);color:var(--muted);font-size:12px;text-transform:uppercase}
+table.data-table td{padding:8px 10px;border-bottom:1px solid var(--border)}
+table.data-table tr:hover td{background:#fafcff}
+.badge-num{font-family:Menlo,Consolas,monospace;font-weight:bold}
+.analytics-section{margin-bottom:24px}
+.analytics-section h4{margin:0 0 8px}
 </style>
 </head>
 <body>
@@ -61,11 +71,17 @@ body{margin:0;font-family:Arial,Helvetica,sans-serif;background:var(--bg);color:
     <div class="lock-row">
       <input type="password" id="tokenInput" placeholder="Admin token για αποθήκευση…" autocomplete="off">
       <button class="btn btn-secondary" id="unlockBtn">Ξεκλείδωμα</button>
-      <span class="locked-note">Χωρίς token μπορείς να δεις τα πάντα, αλλά όχι να αποθηκεύσεις.</span>
+      <span class="locked-note">Χωρίς token μπορείς να δεις τα πάντα, αλλά όχι να αποθηκεύσεις/δεις analytics.</span>
     </div>
     <div id="globalStatus" class="status"></div>
   </section>
 
+  <div class="tabs">
+    <button class="tab-btn active" id="tabBtnTaxonomy" type="button">🏷️ Taxonomy</button>
+    <button class="tab-btn" id="tabBtnAnalytics" type="button">📊 Analytics</button>
+  </div>
+
+  <div id="tab-taxonomy">
   <section class="panel">
     <div class="toolbar">
       <input type="search" id="filterInput" placeholder="Φίλτρο concepts/λέξεων…">
@@ -84,6 +100,20 @@ body{margin:0;font-family:Arial,Helvetica,sans-serif;background:var(--bg);color:
     </form>
     <div class="hint">Το key γίνεται αυτόματα lowercase με underscores. Χρειάζεται τουλάχιστον 1 λέξη-κλειδί.</div>
   </section>
+  </div>
+
+  <div id="tab-analytics" style="display:none">
+    <section class="panel">
+      <div class="toolbar">
+        <span class="counter" id="analyticsCounter">Αναζητήσεις που καταγράφηκαν: —</span>
+        <button class="btn btn-secondary" id="refreshAnalyticsBtn">🔄 Ανανέωση</button>
+      </div>
+      <div id="analyticsStatus" class="status"></div>
+      <div id="analyticsContent">
+        <p class="hint">Ξεκλείδωσε πρώτα με το admin token από πάνω, μετά πάτα "Ανανέωση".</p>
+      </div>
+    </section>
+  </div>
 
 </main>
 
@@ -97,6 +127,20 @@ const statusEl = document.getElementById("globalStatus");
 const saveBtn = document.getElementById("saveBtn");
 const counterEl = document.getElementById("counter");
 const lockStatusEl = document.getElementById("lockStatus");
+
+// ---- Tabs ----
+const tabBtnTaxonomy = document.getElementById("tabBtnTaxonomy");
+const tabBtnAnalytics = document.getElementById("tabBtnAnalytics");
+const tabTaxonomy = document.getElementById("tab-taxonomy");
+const tabAnalytics = document.getElementById("tab-analytics");
+tabBtnTaxonomy.addEventListener("click", () => {
+  tabBtnTaxonomy.classList.add("active"); tabBtnAnalytics.classList.remove("active");
+  tabTaxonomy.style.display = ""; tabAnalytics.style.display = "none";
+});
+tabBtnAnalytics.addEventListener("click", () => {
+  tabBtnAnalytics.classList.add("active"); tabBtnTaxonomy.classList.remove("active");
+  tabAnalytics.style.display = ""; tabTaxonomy.style.display = "none";
+});
 
 function showStatus(msg, type) {
   statusEl.textContent = msg;
@@ -208,6 +252,66 @@ document.getElementById("unlockBtn").addEventListener("click", () => {
   saveBtn.disabled = !dirty;
   showStatus("Token αποθηκεύτηκε για αυτή τη σελίδα (όχι μόνιμα) — μπορείς να αποθηκεύσεις αλλαγές.", "ok");
 });
+
+// ---- Analytics tab ----
+const analyticsStatusEl = document.getElementById("analyticsStatus");
+const analyticsContentEl = document.getElementById("analyticsContent");
+const analyticsCounterEl = document.getElementById("analyticsCounter");
+
+function showAnalyticsStatus(msg, type) {
+  analyticsStatusEl.textContent = msg;
+  analyticsStatusEl.className = "status " + type;
+}
+
+function renderQueryTable(rows, columns) {
+  if (!rows.length) return '<p class="hint">Καμία καταχώρηση ακόμα.</p>';
+  const head = columns.map(c => `<th>${esc(c.label)}</th>`).join("");
+  const body = rows.map(r => `<tr>${columns.map(c => `<td${c.num ? ' class="badge-num"' : ''}>${esc(c.fmt ? c.fmt(r) : r[c.key])}</td>`).join("")}</tr>`).join("");
+  return `<table class="data-table"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>`;
+}
+
+async function loadAnalytics() {
+  if (!adminToken) { showAnalyticsStatus("Χρειάζεται να ξεκλειδώσεις πρώτα με το admin token (πάνω).", "err"); return; }
+  analyticsContentEl.innerHTML = "<p>Φόρτωση…</p>";
+  try {
+    const resp = await fetch("/api/admin/analytics", { headers: { "x-admin-token": adminToken } });
+    const data = await resp.json().catch(() => null);
+    if (!resp.ok) throw new Error((data && data.error) || `HTTP ${resp.status}`);
+    analyticsCounterEl.textContent = `Αναζητήσεις που καταγράφηκαν: ${data.tracked_queries_total}`;
+    analyticsContentEl.innerHTML = `
+      <div class="analytics-section">
+        <h4>🔎 Πιο συχνές αναζητήσεις</h4>
+        ${renderQueryTable(data.top_queries, [
+          { key: "query", label: "Query" },
+          { key: "count", label: "Φορές", num: true },
+          { key: "zero_result", label: "0-αποτελεσμάτων", num: true },
+        ])}
+      </div>
+      <div class="analytics-section">
+        <h4>🚫 Αναζητήσεις χωρίς αποτέλεσμα (candidates για νέα concepts)</h4>
+        ${renderQueryTable(data.zero_result_queries, [
+          { key: "query", label: "Query" },
+          { key: "zero_result", label: "Φορές (0 αποτ.)", num: true },
+          { key: "count", label: "Σύνολο αναζητήσεων", num: true },
+        ])}
+      </div>
+      <div class="analytics-section">
+        <h4>⭐ Πιο δημοφιλή προγράμματα (βάσει κλικ)</h4>
+        ${renderQueryTable(data.top_clicked_programs, [
+          { key: "title", label: "Πρόγραμμα" },
+          { key: "clicks", label: "Κλικ", num: true },
+          { key: "from_queries", label: "Από queries", fmt: r => r.from_queries.map(q => `${q.query} (${q.clicks})`).join(", ") },
+        ])}
+      </div>
+    `;
+    showAnalyticsStatus("Ενημερώθηκε.", "ok");
+    setTimeout(() => { analyticsStatusEl.className = "status"; }, 3000);
+  } catch (err) {
+    analyticsContentEl.innerHTML = "";
+    showAnalyticsStatus("Αποτυχία φόρτωσης analytics: " + err.message, "err");
+  }
+}
+document.getElementById("refreshAnalyticsBtn").addEventListener("click", loadAnalytics);
 
 saveBtn.addEventListener("click", async () => {
   if (!adminToken) { showStatus("Χρειάζεται να ξεκλειδώσεις πρώτα με το admin token.", "err"); return; }
