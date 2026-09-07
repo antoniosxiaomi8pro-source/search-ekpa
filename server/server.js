@@ -279,6 +279,15 @@ app.get("/api/search", searchLimiter, (req, res) => {
   res.json(results);
 });
 
+// Called by the frontend's own instant-search box (which searches client-side for
+// speed, so it never actually hits /api/search) so that search-volume/zero-result
+// stats stay consistent regardless of which UI a user searched from.
+app.post("/api/track-search", trackLimiter, (req, res) => {
+  const { query, result_count } = req.body || {};
+  trackSearch(query, Number(result_count) || 0);
+  res.json({ ok: true });
+});
+
 // Called by the frontend (and the GTM widget) right when a user clicks a result,
 // so we know which program a given search query ultimately led to. Fire-and-forget
 // from the client (sendBeacon/fetch), no response body needed beyond ok:true.

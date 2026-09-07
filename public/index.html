@@ -312,6 +312,7 @@ function renderAreas(){
 }
 function render(){
   const r=getResults(), shown=r.slice(0,40);
+  trackSearchAnalytics(state.q,r.length);
   document.getElementById("sPrograms").textContent=PROGRAMS.length;
   document.getElementById("sAreas").textContent=areaCounts().length;
   document.getElementById("sConcepts").textContent=Object.keys(CONCEPTS).length;
@@ -350,6 +351,15 @@ function trackResultClick(programId,query){
   try{
     if(navigator.sendBeacon){ navigator.sendBeacon("/api/track-click", new Blob([payload],{type:"application/json"})); }
     else { fetch("/api/track-click",{method:"POST",headers:{"Content-Type":"application/json"},body:payload,keepalive:true}); }
+  }catch(e){}
+}
+let _lastTrackedQuery="";
+function trackSearchAnalytics(query,resultCount){
+  const q=(query||"").trim();
+  if(q.length<2 || q===_lastTrackedQuery) return; // same threshold as getResults(); skip repeat renders of the same query
+  _lastTrackedQuery=q;
+  try{
+    fetch("/api/track-search",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({query:q,result_count:resultCount}),keepalive:true});
   }catch(e){}
 }
 document.getElementById("results").addEventListener("click",e=>{
