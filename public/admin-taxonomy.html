@@ -285,6 +285,7 @@ async function loadAnalytics() {
           { key: "query", label: "Query" },
           { key: "count", label: "Φορές", num: true },
           { key: "zero_result", label: "0-αποτελεσμάτων", num: true },
+          { key: "clicks", label: "Κλικαρισμένα προγράμματα", fmt: r => r.clicks.length ? r.clicks.map(c => `${c.title} (${c.clicks})`).join(", ") : "—" },
         ])}
       </div>
       <div class="analytics-section">

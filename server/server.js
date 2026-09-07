@@ -371,7 +371,17 @@ app.get("/api/admin/analytics", adminLimiter, checkAdminToken, (req, res) => {
   const entries = Object.entries(analyticsQueries);
 
   const topQueries = entries
-    .map(([query, e]) => ({ query, count: e.count, zero_result: e.zero_result, last_seen: e.last_seen }))
+    .map(([query, e]) => ({
+      query,
+      count: e.count,
+      zero_result: e.zero_result,
+      last_seen: e.last_seen,
+      clicks: Object.entries(e.clicks).map(([programId, n]) => ({
+        program_id: programId,
+        title: PROGRAMS_BY_ID[programId] ? PROGRAMS_BY_ID[programId].title : "(άγνωστο πρόγραμμα)",
+        clicks: n,
+      })),
+    }))
     .sort((a, b) => b.count - a.count)
     .slice(0, 100);
 

@@ -328,7 +328,7 @@ function render(){
     const hasDesc=p.description_full&&p.description_full.length>30;
     const tags=(p.tags||[]).slice(0,10).map(t=>`<span class="tag">${esc(t)}</span>`).join("");
     const related=(p.similar_program_ids||[]).filter(id=>id!==p.id).map(id=>PROGRAMS_BY_ID[id]).filter(Boolean).slice(0,3);
-    const relatedHtml=related.length?`<div class="related"><span class="related-label">Σχετικά:</span> ${related.map(r=>`<a href="${esc(r.url)}" target="_blank" rel="noopener">${esc(r.title)}</a>`).join(" &middot; ")}</div>`:"";
+    const relatedHtml=related.length?`<div class="related"><span class="related-label">Σχετικά:</span> ${related.map(r=>`<a href="${esc(r.url)}" target="_blank" rel="noopener" data-id="${esc(String(r.id))}">${esc(r.title)}</a>`).join(" &middot; ")}</div>`:"";
     const initial=esc((p.title||"?").trim().charAt(0).toUpperCase());
     const descSnippet = p.description_full && p.description_full.length > 30
       ? `<p class="card-desc">${esc(p.description_full.slice(0, 180))}${p.description_full.length > 180 ? '&hellip;' : ''}</p>`
