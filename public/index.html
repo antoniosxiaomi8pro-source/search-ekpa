@@ -238,7 +238,7 @@ function expandQuery(q){
 //   (lets it match inflected forms of the same root, e.g. "ινος"/"οίνου", but
 //   rejects coincidental fragments buried in a much longer unrelated word,
 //   e.g. "ινος"/wine spuriously matching inside "ανθρώπινος"/"καρκίνος")
-const MIN_TERM_TOKEN_OVERLAP=0.6;
+const MIN_TERM_TOKEN_OVERLAP=0.75;
 function containsTerm(textAll, tokenSet, term){
   if(term.includes(" ")) return (" "+textAll+" ").includes(" "+term+" ");
   if(term.length<=3) return tokenSet.has(term);

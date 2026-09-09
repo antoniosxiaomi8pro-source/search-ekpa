@@ -200,7 +200,7 @@
   // words ("ανθρώπινος", "καρκίνος"). Requiring the term to cover a healthy share
   // of the token's length keeps genuine root/inflection matches while rejecting
   // coincidental fragments buried inside a much longer, unrelated word.
-  const MIN_TERM_TOKEN_OVERLAP = 0.6;
+  const MIN_TERM_TOKEN_OVERLAP = 0.75;
   function containsTerm(textAll, tokenSet, term) {
     if (term.includes(" ")) return (" " + textAll + " ").includes(" " + term + " ");
     if (term.length <= 3) return tokenSet.has(term);
