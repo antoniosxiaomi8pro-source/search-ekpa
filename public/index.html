@@ -342,6 +342,7 @@ function render(){
     const priceHtml=p.price!=null?`<span class="price">${p.price}&euro;</span>`:"";
     const hasDesc=p.description_full&&p.description_full.length>30;
     const tags=(p.tags||[]).slice(0,10).map(t=>`<span class="tag">${esc(t)}</span>`).join("");
+    const scoreBadge = state.q.trim().length>=2 ? `<span class="tag score">score ${Math.round(p._score)}</span>` : "";
     const related=(p.similar_program_ids||[]).filter(id=>id!==p.id).map(id=>PROGRAMS_BY_ID[id]).filter(Boolean).slice(0,3);
     const relatedHtml=related.length?`<div class="related"><span class="related-label">Σχετικά:</span> ${related.map(r=>`<a href="${esc(r.url)}" target="_blank" rel="noopener" data-id="${esc(String(r.id))}">${esc(r.title)}</a>`).join(" &middot; ")}</div>`:"";
     const initial=esc((p.title||"?").trim().charAt(0).toUpperCase());
@@ -352,7 +353,7 @@ function render(){
       <h3><a href="${esc(p.url)}" target="_blank" rel="noopener" data-id="${esc(String(p.id))}">${esc(p.title)}</a></h3>
       <div class="meta-row">${priceHtml}${hasDesc?'':'<span class="completeness">χωρίς περιγραφή</span>'}</div>
       ${descSnippet}
-      <div class="tags">${tags}</div>
+      <div class="tags">${scoreBadge}${tags}</div>
       ${relatedHtml}
     </div></article>`;
   }).join("");
