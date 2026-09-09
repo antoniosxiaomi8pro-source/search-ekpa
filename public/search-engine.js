@@ -193,10 +193,21 @@
     return Array.from(terms);
   }
 
+  // A short expanded term (e.g. "ινος", folded from "οίνος"/wine) can legitimately
+  // appear as a SUBSTRING of a longer inflected form of the same root ("οίνου",
+  // "οίνων"), but Greek also has extremely common suffixes ("-ινος" is a standard
+  // adjective ending) that make short substrings collide with totally unrelated
+  // words ("ανθρώπινος", "καρκίνος"). Requiring the term to cover a healthy share
+  // of the token's length keeps genuine root/inflection matches while rejecting
+  // coincidental fragments buried inside a much longer, unrelated word.
+  const MIN_TERM_TOKEN_OVERLAP = 0.6;
   function containsTerm(textAll, tokenSet, term) {
     if (term.includes(" ")) return (" " + textAll + " ").includes(" " + term + " ");
     if (term.length <= 3) return tokenSet.has(term);
-    return textAll.includes(term);
+    for (const tok of tokenSet) {
+      if (tok.includes(term) && term.length / tok.length >= MIN_TERM_TOKEN_OVERLAP) return true;
+    }
+    return false;
   }
 
   function fullText(p) {

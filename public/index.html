@@ -234,11 +234,18 @@ function expandQuery(q){
 // Boundary-safe term containment for a (possibly multi-word) expanded term:
 // - multi-word term: must appear as a contiguous phrase with word boundaries (fixes "digital marketing" -> stray "digital" match on any AI course)
 // - single-word term <=3 chars (e.g. "ai","it","hr"): exact token match only
-// - single-word term >3 chars: substring containment (normal partial-word search UX)
+// - single-word term >3 chars: must cover >=60% of the token's length it's found in
+//   (lets it match inflected forms of the same root, e.g. "ινος"/"οίνου", but
+//   rejects coincidental fragments buried in a much longer unrelated word,
+//   e.g. "ινος"/wine spuriously matching inside "ανθρώπινος"/"καρκίνος")
+const MIN_TERM_TOKEN_OVERLAP=0.6;
 function containsTerm(textAll, tokenSet, term){
   if(term.includes(" ")) return (" "+textAll+" ").includes(" "+term+" ");
   if(term.length<=3) return tokenSet.has(term);
-  return textAll.includes(term);
+  for(const tok of tokenSet){
+    if(tok.includes(term) && term.length/tok.length>=MIN_TERM_TOKEN_OVERLAP) return true;
+  }
+  return false;
 }
 // Generalized typo-tolerance: build a vocabulary from words that ACTUALLY occur in
 // the catalog (titles + official categories only - deliberately excluding tags and
