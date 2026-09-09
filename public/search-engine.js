@@ -47,6 +47,16 @@
     return cachedVocab;
   }
 
+  // Genuine typos almost always share their opening letters (e.g. "διαφημιση" /
+  // "διαφιμιση"). Words that are only "close" because Greek phonetic folding
+  // collapsed a shared SUFFIX (e.g. "ψυχολογια"/"οινολογια" both end in -ολογια
+  // after folding) do NOT share a prefix — requiring one filters out exactly
+  // that false-positive class without weakening real typo tolerance.
+  const MIN_SHARED_PREFIX = 3;
+  function sharesPrefix(a, b, n) {
+    return a.slice(0, n) === b.slice(0, n);
+  }
+
   function fuzzyVocabMatches(token, vocab) {
     if (token.length < 5) return [];
     const maxDist = token.length >= 9 ? 2 : 1;
@@ -54,6 +64,7 @@
     for (const word of vocab) {
       if (word === token) continue;
       if (Math.abs(word.length - token.length) > maxDist) continue;
+      if (!sharesPrefix(token, word, MIN_SHARED_PREFIX)) continue;
       if (levenshtein(token, word) <= maxDist) out.push(word);
     }
     return out.slice(0, 3);
@@ -146,7 +157,7 @@
       if (textTokenSet.has(t)) return true;
       if (t.length >= 6) {
         for (const tok of textTokenSet) {
-          if (Math.abs(tok.length - t.length) <= 1 && tok.length >= 6 && levenshtein(t, tok) <= 1) return true;
+          if (Math.abs(tok.length - t.length) <= 1 && tok.length >= 6 && sharesPrefix(t, tok, MIN_SHARED_PREFIX) && levenshtein(t, tok) <= 1) return true;
         }
       }
       return false;
