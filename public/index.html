@@ -73,7 +73,7 @@ input:focus,select:focus{border-color:var(--blue);box-shadow:0 0 0 4px rgba(11,7
 <div class="row">
 <input id="q" type="search" placeholder="">
 <select id="area"></select>
-<select id="sort"><option value="relevance">Ταξινόμηση: Σχετικότητα</option><option value="price_asc">Τιμή: Χαμηλή &rarr; Υψηλή</option><option value="price_desc">Τιμή: Υψηλή &rarr; Χαμηλή</option></select>
+
 </div>
 </section>
 <div class="stats">
@@ -132,7 +132,7 @@ const Engine = window.EkpaSearch;
 // id:null, so ids are only used to resolve similar_program_ids.
 const PROGRAMS_BY_ID = new Map();
 PROGRAMS.forEach(p => { if (p.id != null) PROGRAMS_BY_ID.set(p.id, p); });
-const state = {q:"",area:"",sort:"relevance"};
+const state = {q:"",area:""};
 
 function esc(v){return String(v==null?"":v).replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;");}
 
@@ -160,8 +160,6 @@ function getResults(){
   } else {
     out = (filter ? TITLE_SORTED.filter(filter) : TITLE_SORTED).map(p=>({...p,_score:0}));
   }
-  if(state.sort==="price_asc") out=out.slice().sort((a,b)=>(a.price??1e9)-(b.price??1e9));
-  if(state.sort==="price_desc") out=out.slice().sort((a,b)=>(b.price??-1)-(a.price??-1));
   return out;
 }
 function renderAreas(){
@@ -229,7 +227,6 @@ document.getElementById("q").oninput=e=>{
   _searchDebounce=setTimeout(render,120);
 };
 document.getElementById("area").onchange=e=>{state.area=e.target.value;render();};
-document.getElementById("sort").onchange=e=>{state.sort=e.target.value;render();};
 renderAreas();render();
 
 // ---- AI Βοηθός: retrieval + LLM call happen ONLY in the backend (/api/chat) ----
