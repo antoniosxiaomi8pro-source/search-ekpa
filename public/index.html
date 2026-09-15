@@ -71,14 +71,13 @@ input:focus,select:focus{border-color:var(--blue);box-shadow:0 0 0 4px rgba(11,7
 <main class="wrapper">
 <section class="panel">
 <div class="row">
-<input id="q" type="search" placeholder="Δοκίμασε: άθληση, διαφίμιση, psixologia, economist, ai...">
+<input id="q" type="search" placeholder="Δοκίμασε: μάρκετινγκ, psixologia, οικονομικά, ai...">
 <select id="area"></select>
-<select id="sort"><option value="relevance">Ταξινόμηση: Σχετικότητα</option><option value="price_asc">Τιμή: Χαμηλή &rarr; Υψηλή</option><option value="price_desc">Τιμή: Υψηλή &rarr; Χαμηλή</option></select>
 </div>
 <div class="chips">
 <span class="chip star" data-q="αθληση">αθληση</span>
-<span class="chip" data-q="διαφίμιση">διαφίμιση</span>
-<span class="chip" data-q="διαφιμιση">διαφιμιση</span>
+<span class="chip" data-q="διαφήμιση">διαφήμιση</span>
+<span class="chip" data-q="τεχνητή νοημοσύνη">τεχνητή νοημοσύνη</span>
 <span class="chip" data-q="psixologia">psixologia</span>
 <span class="chip" data-q="economist">economist</span>
 <span class="chip" data-q="διοικηση">διοικηση</span>
@@ -138,7 +137,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
 const PROGRAMS_BY_ID = {};
 PROGRAMS.forEach(p=>{PROGRAMS_BY_ID[p.id]=p;});
-const state = {q:"",area:"",sort:"relevance"};
+const state = {q:"",area:""};
 
 // Common function words that carry no topical meaning - excluded from scoring terms
 // so they don't dilute relevance in multi-word queries (e.g. "μαρκετινγκ και πωλησεις"
@@ -317,8 +316,6 @@ function getResults(){
     out = idxArr.map(x=>({p:x.p,s:score(x,variants,terms)})).filter(x=>x.s>0).sort((a,b)=>b.s-a.s).map(x=>({...x.p,_score:x.s}));
   }
   else { out = idxArr.map(x=>x.p).slice().sort((a,b)=>String(a.title).localeCompare(String(b.title),"el")).map(p=>({...p,_score:0})); }
-  if(state.sort==="price_asc") out=out.slice().sort((a,b)=>(a.price??1e9)-(b.price??1e9));
-  if(state.sort==="price_desc") out=out.slice().sort((a,b)=>(b.price??-1)-(a.price??-1));
   return out;
 }
 function renderAreas(){
@@ -389,7 +386,6 @@ document.getElementById("q").oninput=e=>{
   _searchDebounce=setTimeout(render,120);
 };
 document.getElementById("area").onchange=e=>{state.area=e.target.value;render();};
-document.getElementById("sort").onchange=e=>{state.sort=e.target.value;render();};
 document.querySelectorAll(".chip").forEach(b=>b.onclick=()=>{state.q=b.dataset.q;document.getElementById("q").value=state.q;render();});
 renderAreas();render();
 
