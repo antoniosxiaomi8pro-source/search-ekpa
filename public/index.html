@@ -297,7 +297,20 @@ function score(idx,variants,terms){
   });
   return s;
 }
-function areaCounts(){const m=new Map();PROGRAMS.forEach(p=>(p.areas_of_study||[]).forEach(a=>m.set(a,(m.get(a)||0)+1)));return [...m.entries()].sort((a,b)=>b[1]-a[1]||a[0].localeCompare(b[0],"el"));}
+// Matches the order categories appear in elearningekpa.gr's own navigation menu
+// (fetched 15/9/2026: https://elearningekpa.gr/categories). Anything in our data
+// that isn't in this list (more granular sub-areas the site menu doesn't surface
+// separately) falls back to alphabetical, after all of these.
+const SITE_CATEGORY_ORDER=["Μοριοδοτούμενα Προγράμματα Παιδαγωγικών & Ειδικής Αγωγής","Ψυχολογία - Ψυχιατρική","Διοίκηση Ανθρώπινου Δυναμικού","Οργάνωση και Διοίκηση Επιχειρήσεων","Τεχνητή Νοημοσύνη (AI)","Marketing και Πωλήσεις","Πολιτισμός και Εξωστρέφεια","Πληροφορική - Δίκτυα - Web Design - Μοντάζ","Υγεία","Τουριστικά","Ανάλυση Δεδομένων - Στατιστική","Coaching","Cisco Networking Academy","Προγράμματα με Πιστοποίηση από TÜV HELLAS (TÜV NORD)","Ψηφιακές Δεξιότητες για το Μέλλον","Χρηματοοικονομική και Τραπεζική","Κατεύθυνση Προγραμμάτων Ανάπτυξης  Επαγγελματικών Δεξιοτήτων","Web Development","Security Sciences (Επιστήμες Ασφάλειας)","Real Estate","Λογιστική","Ναυτιλιακά","Νομικά","Αισθητική Προσώπου Σώματος -Medical Tattoo-Κοσμητολογία","Ψηφιακός Μετασχηματισμός","Περιβάλλον και Ανάπτυξη","Logistics","Παιδαγωγικά","Ειδική Αγωγή","Εγκληματολογία","Διαιτολογία - Διατροφή"];
+function areaCounts(){
+  const m=new Map();
+  PROGRAMS.forEach(p=>(p.areas_of_study||[]).forEach(a=>m.set(a,(m.get(a)||0)+1)));
+  return [...m.entries()].sort((a,b)=>{
+    const ia=SITE_CATEGORY_ORDER.indexOf(a[0]), ib=SITE_CATEGORY_ORDER.indexOf(b[0]);
+    const pa=ia===-1?Infinity:ia, pb=ib===-1?Infinity:ib;
+    return pa-pb || a[0].localeCompare(b[0],"el");
+  });
+}
 function getResults(){
   let idxArr=PROGRAM_IDX;
   if(state.area) idxArr=idxArr.filter(x=>(x.p.areas_of_study||[]).includes(state.area));
