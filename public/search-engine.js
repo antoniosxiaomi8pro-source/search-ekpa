@@ -207,30 +207,62 @@
 
   // Multi-word concept terms are kept intact as phrases (not flattened into loose
   // single words) - that flattening was the second bug ("digital marketing" -> stray "digital").
-  function expandQuery(q, CONCEPTS, vocab) {
-    const terms = new Set();
+  function expandQueryDetailed(q, CONCEPTS, vocab) {
+    const allTerms = new Set();
+    const byWord = {}; // original query word -> Set of terms attributable to it (best-effort)
     queryVariants(q).forEach((variantText) => {
-      variantText.split(" ").filter((t) => t.length > 1 && !STOPWORDS.has(t)).forEach((t) => terms.add(t));
-      const textTokens = new Set(variantText.split(" "));
+      const words = variantText.split(" ").filter((t) => t.length > 1 && !STOPWORDS.has(t));
+      words.forEach((t) => {
+        allTerms.add(t);
+        (byWord[t] = byWord[t] || new Set()).add(t);
+      });
+      const textTokens = new Set(words);
       Object.values(CONCEPTS).forEach((conceptTerms) => {
         const hit = conceptTerms.some((t) => phraseMatches(foldGreek(normalize(t)), variantText, textTokens));
-        if (hit) conceptTerms.slice(0, 6).forEach((t) => terms.add(foldGreek(normalize(t))));
+        if (hit) {
+          const added = conceptTerms.slice(0, 6).map((t) => foldGreek(normalize(t)));
+          added.forEach((t) => allTerms.add(t));
+          // Attribute the concept's terms to whichever original word(s) plausibly
+          // triggered it (shares a substring with the trigger). Best-effort: if
+          // nothing matches, the terms still count for relevance (added above)
+          // just without contributing to the coverage bonus below.
+          conceptTerms.forEach((ct) => {
+            const ctFolded = foldGreek(normalize(ct));
+            words.forEach((w) => {
+              if (ctFolded.includes(w) || w.includes(ctFolded)) {
+                added.forEach((a) => (byWord[w] = byWord[w] || new Set()).add(a));
+              }
+            });
+          });
+        }
       });
-      // Generalized typo tolerance: correct tokens against real catalog vocabulary.
       if (vocab) {
         textTokens.forEach((tok) => {
           if (tok.length < 5 || STOPWORDS.has(tok)) return;
           fuzzyVocabMatches(tok, vocab).forEach((corrected) => {
-            terms.add(corrected);
+            allTerms.add(corrected);
+            (byWord[tok] = byWord[tok] || new Set()).add(corrected);
             Object.values(CONCEPTS).forEach((conceptTerms) => {
               const isTrigger = conceptTerms.some((ct) => foldGreek(normalize(ct)) === corrected);
-              if (isTrigger) conceptTerms.slice(0, 6).forEach((ct) => terms.add(foldGreek(normalize(ct))));
+              if (isTrigger) {
+                conceptTerms.slice(0, 6).forEach((ct) => {
+                  const f = foldGreek(normalize(ct));
+                  allTerms.add(f);
+                  (byWord[tok] = byWord[tok] || new Set()).add(f);
+                });
+              }
             });
           });
         });
       }
     });
-    return Array.from(terms);
+    const byWordArrays = {};
+    Object.entries(byWord).forEach(([k, v]) => { byWordArrays[k] = Array.from(v); });
+    return { termsFlat: Array.from(allTerms), byWord: byWordArrays };
+  }
+
+  function expandQuery(q, CONCEPTS, vocab) {
+    return expandQueryDetailed(q, CONCEPTS, vocab).termsFlat;
   }
 
   // A short expanded term (e.g. "ινος", folded from "οίνος"/wine) can legitimately
@@ -256,9 +288,17 @@
     ));
   }
 
+  // How much to reward a program for genuinely covering MULTIPLE distinct query
+  // concepts (e.g. "αθλητική ψυχολογία") over one that just heavily matches a
+  // single concept. Deliberately modest relative to typical scores (100-250) —
+  // enough to lift a weak-but-broad match above a strong-but-narrow one when
+  // that's the only genuinely on-topic result, without overriding a program that
+  // is a strong match on its own.
+  const COVERAGE_BONUS_PER_EXTRA_CONCEPT = 70;
+
   function score(p, q, CONCEPTS, vocab) {
     const variants = queryVariants(q);
-    const terms = expandQuery(q, CONCEPTS, vocab);
+    const { termsFlat: terms, byWord } = expandQueryDetailed(q, CONCEPTS, vocab);
     const title = foldGreek(normalize(p.title));
     const primaryArea = foldGreek(normalize(p.primary_area));
     const area = foldGreek(normalize((p.areas_of_study || []).join(" ")));
@@ -285,6 +325,22 @@
       else if (containsTerm(area, areaTok, t)) s += 3;
       if (containsTerm(all, allTok, t)) s += 3;
     });
+    // Coverage bonus: only evaluated when the query actually has 2+ distinct
+    // meaningful words — for a single-word (or single-concept) query this block
+    // is a no-op and `s` is returned exactly as the existing logic computed it.
+    const words = Object.keys(byWord);
+    if (s > 0 && words.length >= 2) {
+      let covered = 0;
+      words.forEach((w) => {
+        const hit = byWord[w].some((t) =>
+          containsTerm(title, titleTok, t) || containsTerm(tags, tagsTok, t) ||
+          containsTerm(primaryArea, primaryAreaTok, t) || containsTerm(area, areaTok, t) ||
+          containsTerm(all, allTok, t)
+        );
+        if (hit) covered++;
+      });
+      if (covered >= 2) s += (covered - 1) * COVERAGE_BONUS_PER_EXTRA_CONCEPT;
+    }
     return s;
   }
 

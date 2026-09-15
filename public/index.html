@@ -221,30 +221,42 @@ function phraseMatches(triggerNorm, textNorm, textTokenSet){
   }
   return (" "+textNorm+" ").includes(" "+triggerNorm+" ");
 }
-function expandQuery(q){
-  const terms=new Set();
+function expandQueryDetailed(q){
+  const allTerms=new Set();
+  const byWord={}; // original query word -> Set of terms attributable to it (best-effort)
   queryVariants(q).forEach(variantText=>{
-    variantText.split(" ").filter(t=>t.length>1 && !STOPWORDS.has(t)).forEach(t=>terms.add(t));
-    const textTokens=new Set(variantText.split(" "));
+    const words=variantText.split(" ").filter(t=>t.length>1 && !STOPWORDS.has(t));
+    words.forEach(t=>{ allTerms.add(t); (byWord[t]=byWord[t]||new Set()).add(t); });
+    const textTokens=new Set(words);
     Object.values(CONCEPTS).forEach(conceptTerms=>{
       const hit=conceptTerms.some(t=>phraseMatches(foldGreek(normalize(t)),variantText,textTokens));
-      if(hit){ conceptTerms.slice(0,6).forEach(t=>terms.add(foldGreek(normalize(t)))); }
+      if(hit){
+        const added=conceptTerms.slice(0,6).map(t=>foldGreek(normalize(t)));
+        added.forEach(t=>allTerms.add(t));
+        conceptTerms.forEach(ct=>{
+          const ctFolded=foldGreek(normalize(ct));
+          words.forEach(w=>{ if(ctFolded.includes(w)||w.includes(ctFolded)) added.forEach(a=>(byWord[w]=byWord[w]||new Set()).add(a)); });
+        });
+      }
     });
-    // Generalized typo tolerance: for tokens that didn't already trigger a concept,
-    // try correcting them against real catalog vocabulary (see buildVocabulary above).
     textTokens.forEach(tok=>{
       if(tok.length<5 || STOPWORDS.has(tok)) return;
       fuzzyVocabMatches(tok).forEach(corrected=>{
-        terms.add(corrected);
-        // if the corrected word is itself a concept trigger, pull in its synonyms too
+        allTerms.add(corrected);
+        (byWord[tok]=byWord[tok]||new Set()).add(corrected);
         Object.values(CONCEPTS).forEach(conceptTerms=>{
           const isTrigger=conceptTerms.some(ct=>foldGreek(normalize(ct))===corrected);
-          if(isTrigger) conceptTerms.slice(0,6).forEach(ct=>terms.add(foldGreek(normalize(ct))));
+          if(isTrigger) conceptTerms.slice(0,6).forEach(ct=>{ const f=foldGreek(normalize(ct)); allTerms.add(f); (byWord[tok]=byWord[tok]||new Set()).add(f); });
         });
       });
     });
   });
-  return Array.from(terms); // multi-word terms stay intact as phrases, not flattened into loose single words
+  const byWordArrays={};
+  Object.entries(byWord).forEach(([k,v])=>{ byWordArrays[k]=Array.from(v); });
+  return {termsFlat:Array.from(allTerms), byWord:byWordArrays};
+}
+function expandQuery(q){
+  return expandQueryDetailed(q).termsFlat; // multi-word terms stay intact as phrases, not flattened into loose single words
 }
 // Boundary-safe term containment for a (possibly multi-word) expanded term:
 // - multi-word term: must appear as a contiguous phrase with word boundaries (fixes "digital marketing" -> stray "digital" match on any AI course)
@@ -306,7 +318,8 @@ const PROGRAM_IDX = PROGRAMS.map(p=>{
     primaryAreaTok:new Set(primaryArea.split(" ")), areaTok:new Set(area.split(" ")), allTok:new Set(all.split(" "))
   };
 });
-function score(idx,variants,terms){
+const COVERAGE_BONUS_PER_EXTRA_CONCEPT=70;
+function score(idx,variants,terms,byWord){
   const {title,primaryArea,area,tags,all,titleTok,tagsTok,primaryAreaTok,areaTok,allTok}=idx;
   let s=0;
   variants.forEach(raw=>{
@@ -320,6 +333,20 @@ function score(idx,variants,terms){
     if(containsTerm(primaryArea,primaryAreaTok,t))s+=8; else if(containsTerm(area,areaTok,t))s+=3;
     if(containsTerm(all,allTok,t))s+=3;
   });
+  // Coverage bonus: only evaluated for queries with 2+ distinct meaningful words —
+  // a single-word/single-concept query never reaches this block with a nonzero
+  // effect, so it returns exactly what the existing logic above already computed.
+  if(byWord){
+    const words=Object.keys(byWord);
+    if(s>0 && words.length>=2){
+      let covered=0;
+      words.forEach(w=>{
+        const hit=byWord[w].some(t=>containsTerm(title,titleTok,t)||containsTerm(tags,tagsTok,t)||containsTerm(primaryArea,primaryAreaTok,t)||containsTerm(area,areaTok,t)||containsTerm(all,allTok,t));
+        if(hit) covered++;
+      });
+      if(covered>=2) s+=(covered-1)*COVERAGE_BONUS_PER_EXTRA_CONCEPT;
+    }
+  }
   return s;
 }
 // Matches the order categories appear in elearningekpa.gr's own navigation menu
@@ -341,8 +368,8 @@ function getResults(){
   if(state.area) idxArr=idxArr.filter(x=>(x.p.areas_of_study||[]).includes(state.area));
   let out;
   if(state.q.trim().length>=2){
-    const variants=queryVariants(state.q), terms=expandQuery(state.q); // computed ONCE per keystroke, not per program
-    out = idxArr.map(x=>({p:x.p,s:score(x,variants,terms)})).filter(x=>x.s>0).sort((a,b)=>b.s-a.s).map(x=>({...x.p,_score:x.s}));
+    const variants=queryVariants(state.q), {termsFlat:terms, byWord}=expandQueryDetailed(state.q); // computed ONCE per keystroke, not per program
+    out = idxArr.map(x=>({p:x.p,s:score(x,variants,terms,byWord)})).filter(x=>x.s>0).sort((a,b)=>b.s-a.s).map(x=>({...x.p,_score:x.s}));
   }
   else { out = idxArr.map(x=>x.p).slice().sort((a,b)=>String(a.title).localeCompare(String(b.title),"el")).map(p=>({...p,_score:0})); }
   return out;
@@ -420,8 +447,8 @@ renderAreas();render();
 // ---- AI Βοηθός (retrieval μέσω της δικής μας score(), generation μέσω Claude API) ----
 const chatHistory=[];
 function retrieveCandidates(query,k){
-  const variants=queryVariants(query), terms=expandQuery(query);
-  return PROGRAM_IDX.map(x=>({p:x.p,s:score(x,variants,terms)})).filter(x=>x.s>0).sort((a,b)=>b.s-a.s).slice(0,k).map(x=>x.p);
+  const variants=queryVariants(query), {termsFlat:terms, byWord}=expandQueryDetailed(query);
+  return PROGRAM_IDX.map(x=>({p:x.p,s:score(x,variants,terms,byWord)})).filter(x=>x.s>0).sort((a,b)=>b.s-a.s).slice(0,k).map(x=>x.p);
 }
 function candidatesToContext(list){
   return list.map(p=>`- ${p.title} | κατεύθυνση: ${p.primary_area||"—"} | τιμή: ${p.price!=null?p.price+"€":"άγνωστη"} | url: ${p.url} | περιγραφή: ${(p.description_full||"").slice(0,280).replace(/\s+/g," ")}`).join("\n");
