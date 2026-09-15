@@ -314,18 +314,44 @@ async function loadAnalytics() {
 }
 document.getElementById("refreshAnalyticsBtn").addEventListener("click", loadAnalytics);
 
+async function postConcepts(confirmRankingChanges) {
+  const headers = { "Content-Type": "application/json", "x-admin-token": adminToken };
+  if (confirmRankingChanges) headers["x-confirm-ranking-changes"] = "true";
+  const resp = await fetch("/api/admin/concepts", { method: "POST", headers, body: JSON.stringify(concepts) });
+  const data = await resp.json().catch(() => null);
+  return { ok: resp.ok, status: resp.status, data };
+}
+
+function describeRankingChanges(changes) {
+  const lines = changes.slice(0, 8).map((c) => {
+    const before = c.expected.slice(0, 3).join(", ") || "(καμία)";
+    const after = c.actual.slice(0, 3).join(", ") || "(καμία)";
+    return `• "${c.query}"\n  πριν: ${before}\n  μετά: ${after}`;
+  });
+  if (changes.length > 8) lines.push(`… και ${changes.length - 8} ακόμα queries.`);
+  return lines.join("\n\n");
+}
+
 saveBtn.addEventListener("click", async () => {
   if (!adminToken) { showStatus("Χρειάζεται να ξεκλειδώσεις πρώτα με το admin token.", "err"); return; }
   saveBtn.disabled = true;
   saveBtn.textContent = "Αποθήκευση…";
   try {
-    const resp = await fetch("/api/admin/concepts", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "x-admin-token": adminToken },
-      body: JSON.stringify(concepts),
-    });
-    const data = await resp.json().catch(() => null);
-    if (!resp.ok) throw new Error((data && data.error) || `HTTP ${resp.status}`);
+    let { ok, status, data } = await postConcepts(false);
+    if (!ok && status === 409 && data && Array.isArray(data.ranking_changes)) {
+      const proceed = window.confirm(
+        `Αυτή η αλλαγή επηρεάζει ${data.ranking_changes.length} ήδη ελεγμένα queries (πρώτα 3 αποτελέσματα, πριν/μετά):\n\n` +
+          describeRankingChanges(data.ranking_changes) +
+          `\n\nΑποθήκευση παρόλα αυτά;`
+      );
+      if (!proceed) {
+        showStatus("Η αποθήκευση ακυρώθηκε — δεν έγινε καμία αλλαγή.", "err");
+        saveBtn.textContent = "💾 Αποθήκευση όλων (μη αποθηκευμένες αλλαγές)";
+        return;
+      }
+      ({ ok, status, data } = await postConcepts(true));
+    }
+    if (!ok) throw new Error((data && data.error) || `HTTP ${status}`);
     dirty = false;
     saveBtn.textContent = "💾 Αποθήκευση όλων";
     showStatus(`Αποθηκεύτηκε! (${data.concepts_count} concepts)`, "ok");

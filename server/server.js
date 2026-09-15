@@ -507,10 +507,42 @@ function isValidConceptsShape(data) {
   return true;
 }
 
+// ---- Ranking-drift guard ----
+const RANKING_FIXTURE_PATH = path.join(__dirname, "../test/fixtures/search-regression.json");
+let RANKING_FIXTURE = null;
+try {
+  RANKING_FIXTURE = JSON.parse(fs.readFileSync(RANKING_FIXTURE_PATH, "utf-8"));
+} catch (e) {
+  console.error("Ranking-drift guard: δεν βρέθηκε το test/fixtures/search-regression.json - ο έλεγχος θα παραλείπεται.");
+}
+
+function checkRankingDrift(newConcepts) {
+  if (!RANKING_FIXTURE) return [];
+  const diffs = [];
+  for (const [query, expectedTop10] of Object.entries(RANKING_FIXTURE)) {
+    const actualTop10 = EkpaSearch.rank(PROGRAMS, newConcepts, query)
+      .slice(0, 10)
+      .map((p) => p.slug);
+    if (JSON.stringify(actualTop10) !== JSON.stringify(expectedTop10)) {
+      diffs.push({ query, expected: expectedTop10, actual: actualTop10 });
+    }
+  }
+  return diffs;
+}
+
 app.post("/api/admin/concepts", adminLimiter, checkAdminToken, (req, res) => {
   const incoming = req.body;
   if (!isValidConceptsShape(incoming)) {
     return res.status(400).json({ error: "Μη έγκυρη μορφή taxonomy (αναμένεται { concept_key: [\"λέξη\", ...] }, με μη κενές τιμές)." });
+  }
+  if (req.get("x-confirm-ranking-changes") !== "true") {
+    const rankingChanges = checkRankingDrift(incoming);
+    if (rankingChanges.length > 0) {
+      return res.status(409).json({
+        error: `Αυτή η αλλαγή θα άλλαζε τα αποτελέσματα για ${rankingChanges.length} ελεγμένα queries. Έλεγξε τη διαφορά και ξαναστείλε με το header x-confirm-ranking-changes: true αν είναι σκόπιμη.`,
+        ranking_changes: rankingChanges,
+      });
+    }
   }
   try {
     // Pretty-printed so the file stays hand-editable; atomic so it can never be left half-written.
