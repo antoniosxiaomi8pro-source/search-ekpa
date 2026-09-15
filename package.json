@@ -5,7 +5,9 @@
   "description": "Backend for EKPA Smart Finder: keeps the LLM API key server-side, does retrieval, calls the chosen LLM provider.",
   "main": "server/server.js",
   "scripts": {
-    "start": "node server/server.js"
+    "start": "node server/server.js",
+    "test": "node --test \"test/**/*.test.js\"",
+    "update-fixture": "node scripts/update-search-fixture.js"
   },
   "dependencies": {
     "compression": "^1.8.2",
