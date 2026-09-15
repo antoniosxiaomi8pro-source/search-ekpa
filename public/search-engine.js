@@ -3,6 +3,17 @@
  * Same module runs in the browser (window.EkpaSearch) AND in Node (module.exports),
  * so the backend's retrieval step is guaranteed to behave identically to the
  * frontend's instant-search - no logic duplication/drift between the two.
+ * (index.html loads THIS file via <script src="search-engine.js"> — there is no
+ * second copy of the scoring logic anywhere else.)
+ *
+ * Performance model (v4):
+ *  - Per-program normalized fields + token sets are computed ONCE per programs array
+ *    (cached in a WeakMap), not on every query.
+ *  - Query variants + concept expansion + typo-correction are computed ONCE per query,
+ *    not once per program (the v3 backend recomputed them 702x per request, ~1-2.5s).
+ *  - Folded concept terms are cached per concepts object (re-built automatically when
+ *    the admin panel replaces the concepts object).
+ *  - Small LRU cache of full rankings per query (invalidated when programs/concepts change).
  */
 (function (root, factory) {
   if (typeof module === "object" && module.exports) {
@@ -24,81 +35,11 @@
     "προγραμμα", "προγραμματα", "program", "programs",
   ]);
 
-  // Generalized typo-tolerance: a vocabulary built from words that ACTUALLY occur in
-  // the catalog (titles + official categories only - deliberately excluding tags and
-  // free-text descriptions, which is exactly where the "digital marketing" -> stray
-  // "digital" bug came from). Filtered by document frequency: a word used in too many
-  // programs (like "διοικηση") is too generic to be a safe typo-correction target.
-  function buildVocabulary(programs) {
-    const freq = new Map();
-    programs.forEach((p) => {
-      const seen = new Set();
-      [p.title, (p.areas_of_study || []).join(" ")].forEach((f) => {
-        foldGreek(normalize(f)).split(" ").forEach((t) => {
-          if (t.length >= 5 && !STOPWORDS.has(t)) seen.add(t);
-        });
-      });
-      seen.forEach((t) => freq.set(t, (freq.get(t) || 0) + 1));
-    });
-    return Array.from(freq.entries()).filter(([, c]) => c >= 1 && c <= 20).map(([w]) => w);
-  }
-
-  let cachedVocab = null;
-  let cachedVocabForPrograms = null;
-  function getVocabulary(programs) {
-    if (cachedVocab && cachedVocabForPrograms === programs) return cachedVocab;
-    cachedVocab = buildVocabulary(programs);
-    cachedVocabForPrograms = programs;
-    return cachedVocab;
-  }
-
-  // Genuine typos almost always share their opening letters (e.g. "διαφημιση" /
-  // "διαφιμιση"). Words that are only "close" because Greek phonetic folding
-  // collapsed a shared SUFFIX (e.g. "ψυχολογια"/"οινολογια" both end in -ολογια
-  // after folding) do NOT share a prefix — requiring one filters out exactly
-  // that false-positive class without weakening real typo tolerance.
-  const MIN_SHARED_PREFIX = 3;
-  function sharesPrefix(a, b, n) {
-    if (!a || !b || a[0] !== b[0]) return false; // the opening letter must always match —
-    // this is what actually rules out unrelated roots like ψυχολογια/οινολογια or
-    // μαθισις/παθισις, regardless of what happens later in the word.
-    if (a.length === b.length) return a.slice(0, n) === b.slice(0, n);
-    // Different lengths: only bridge the gap for a DOUBLED letter specifically
-    // (e.g. "αγγλικα" vs "αγλικα" — forgetting to double a consonant is a very
-    // common Greek/Greeklish typo). A first attempt allowed any single inserted
-    // character here, but that reopened dozens of unrelated collisions across the
-    // real catalog (e.g. "στατιστικα"/"στρατιοτικα", "γεολογια"/"γεμολογια") —
-    // far more damage than the one case it was meant to fix.
-    const longer = a.length > b.length ? a : b;
-    const shorter = a.length > b.length ? b : a;
-    const shortPrefix = shorter.slice(0, n);
-    for (let i = 1; i < Math.min(longer.length, n + 1); i++) {
-      if (longer[i] === longer[i - 1]) {
-        const candidate = longer.slice(0, i) + longer.slice(i + 1);
-        if (candidate.slice(0, n) === shortPrefix) return true;
-      }
-    }
-    return false;
-  }
-
-  function fuzzyVocabMatches(token, vocab) {
-    if (token.length < 5) return [];
-    const maxDist = token.length >= 9 ? 2 : 1;
-    const out = [];
-    for (const word of vocab) {
-      if (word === token) continue;
-      if (Math.abs(word.length - token.length) > maxDist) continue;
-      if (!sharesPrefix(token, word, MIN_SHARED_PREFIX)) continue;
-      if (levenshtein(token, word) <= maxDist) out.push(word);
-    }
-    return out.slice(0, 3);
-  }
-
   function normalize(v) {
     return String(v || "")
       .toLowerCase()
       .normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[̀-ͯ]/g, "")
       .replace(/[^\p{L}\p{N}]+/gu, " ")
       .replace(/\s+/g, " ")
       .trim();
@@ -140,12 +81,16 @@
   }
 
   function isLikelyGreeklish(text) {
-    return /[a-z]/i.test(text) && !/[\u0370-\u03FF\u1F00-\u1FFF]/.test(text);
+    return /[a-z]/i.test(text) && !/[Ͱ-Ͽἀ-῿]/.test(text);
   }
 
-  // A query is checked in both its normal form AND (if it looks like Latin-script Greek)
-  // a transliterated-to-Greek form. Both variants get folded, so "psixologia" and
-  // "ψυχολογία" converge to the same canonical string ("ψιχολογια").
+  // Greeklish transliteration is only attempted for queries with at least this many
+  // letters. Very short Latin queries are almost always acronyms ("ai", "hr", "it",
+  // "bi", "seo") — transliterating them ("hr" -> "ιρ") produced fragments that occur
+  // inside hundreds of unrelated Greek words ("εργαστήριο"), matching ~80-95% of the
+  // whole catalog. Real greeklish words ("psixologia", "dioikisi") are never that short.
+  const MIN_GREEKLISH_LETTERS = 4;
+
   // Greek "αυ"/"ευ" are pronounced (and often typed in Greeklish) as "af"/"av" or
   // "ef"/"ev" depending on the following consonant's voicing (e.g. "ναυτιλιακά" is
   // commonly typed "naftiliaka"). We can't reliably tell from Latin letters alone
@@ -153,17 +98,20 @@
   // this pattern appears we try the diphthong reading too, as an extra candidate.
   function transliterateGreeklishAuEu(latinLower) {
     const marked = latinLower
-      .replace(/av/g, "\u0001").replace(/af/g, "\u0001")
-      .replace(/ev/g, "\u0002").replace(/ef/g, "\u0002");
-    return transliterateGreeklish(marked).replace(/\u0001/g, "αυ").replace(/\u0002/g, "ευ");
+      .replace(/av/g, "").replace(/af/g, "")
+      .replace(/ev/g, "").replace(/ef/g, "");
+    return transliterateGreeklish(marked).replace(//g, "αυ").replace(//g, "ευ");
   }
 
+  // A query is checked in both its normal form AND (if it looks like Latin-script Greek)
+  // a transliterated-to-Greek form. Both variants get folded, so "psixologia" and
+  // "ψυχολογία" converge to the same canonical string ("ψιχολογια").
   function queryVariants(q) {
     const variants = new Set();
     const base = foldGreek(normalize(q));
     if (base) variants.add(base);
     const lower = String(q || "").toLowerCase();
-    if (isLikelyGreeklish(lower)) {
+    if (isLikelyGreeklish(lower) && base.replace(/\s+/g, "").length >= MIN_GREEKLISH_LETTERS) {
       const translit = foldGreek(normalize(transliterateGreeklish(lower)));
       if (translit) variants.add(translit);
       if (/a[fv]|e[fv]/.test(lower)) {
@@ -188,6 +136,68 @@
     return prev[b.length];
   }
 
+  // Genuine typos almost always share their opening letters (e.g. "διαφημιση" /
+  // "διαφιμιση"). Words that are only "close" because Greek phonetic folding
+  // collapsed a shared SUFFIX (e.g. "ψυχολογια"/"οινολογια" both end in -ολογια
+  // after folding) do NOT share a prefix — requiring one filters out exactly
+  // that false-positive class without weakening real typo tolerance.
+  const MIN_SHARED_PREFIX = 3;
+  function sharesPrefix(a, b, n) {
+    if (!a || !b || a[0] !== b[0]) return false; // the opening letter must always match —
+    // this is what actually rules out unrelated roots like ψυχολογια/οινολογια or
+    // μαθισις/παθισις, regardless of what happens later in the word.
+    if (a.length === b.length) return a.slice(0, n) === b.slice(0, n);
+    // Different lengths: only bridge the gap for a DOUBLED letter specifically
+    // (e.g. "αγγλικα" vs "αγλικα" — forgetting to double a consonant is a very
+    // common Greek/Greeklish typo). A first attempt allowed any single inserted
+    // character here, but that reopened dozens of unrelated collisions across the
+    // real catalog (e.g. "στατιστικα"/"στρατιοτικα", "γεολογια"/"γεμολογια") —
+    // far more damage than the one case it was meant to fix.
+    const longer = a.length > b.length ? a : b;
+    const shorter = a.length > b.length ? b : a;
+    const shortPrefix = shorter.slice(0, n);
+    for (let i = 1; i < Math.min(longer.length, n + 1); i++) {
+      if (longer[i] === longer[i - 1]) {
+        const candidate = longer.slice(0, i) + longer.slice(i + 1);
+        if (candidate.slice(0, n) === shortPrefix) return true;
+      }
+    }
+    return false;
+  }
+
+  // ---- Vocabulary (typo-correction targets) ----
+  // Built from words that ACTUALLY occur in the catalog (titles + official categories
+  // only - deliberately excluding tags and free-text descriptions, which is exactly where
+  // the "digital marketing" -> stray "digital" bug came from). Filtered by document
+  // frequency: a word used in too many programs (like "διοικηση") is too generic to be a
+  // safe typo-correction target.
+  function buildVocabulary(programs) {
+    const freq = new Map();
+    programs.forEach((p) => {
+      const seen = new Set();
+      [p.title, (p.areas_of_study || []).join(" ")].forEach((f) => {
+        foldGreek(normalize(f)).split(" ").forEach((t) => {
+          if (t.length >= 5 && !STOPWORDS.has(t)) seen.add(t);
+        });
+      });
+      seen.forEach((t) => freq.set(t, (freq.get(t) || 0) + 1));
+    });
+    return Array.from(freq.entries()).filter(([, c]) => c >= 1 && c <= 20).map(([w]) => w);
+  }
+
+  function fuzzyVocabMatches(token, vocab) {
+    if (token.length < 5) return [];
+    const maxDist = token.length >= 9 ? 2 : 1;
+    const out = [];
+    for (const word of vocab) {
+      if (word === token) continue;
+      if (Math.abs(word.length - token.length) > maxDist) continue;
+      if (!sharesPrefix(token, word, MIN_SHARED_PREFIX)) continue;
+      if (levenshtein(token, word) <= maxDist) out.push(word);
+    }
+    return out.slice(0, 3);
+  }
+
   // FIXED matching: whole-word for single-token triggers, whole-phrase (word-boundary)
   // for multi-word triggers. No raw substring containment (that was the original bug).
   function phraseMatches(triggerNorm, textNorm, textTokenSet) {
@@ -205,11 +215,31 @@
     return (" " + textNorm + " ").includes(" " + triggerNorm + " ");
   }
 
+  // Folded concept terms, cached per concepts object. The admin panel replaces the whole
+  // CONCEPTS object on save, so a new object automatically gets a fresh cache entry.
+  const foldedConceptsCache = new WeakMap();
+  function getFoldedConcepts(CONCEPTS) {
+    if (!CONCEPTS || typeof CONCEPTS !== "object") return [];
+    let f = foldedConceptsCache.get(CONCEPTS);
+    if (!f) {
+      f = Object.values(CONCEPTS).map((terms) => (terms || []).map((t) => foldGreek(normalize(t))));
+      foldedConceptsCache.set(CONCEPTS, f);
+    }
+    return f;
+  }
+
   // Multi-word concept terms are kept intact as phrases (not flattened into loose
   // single words) - that flattening was the second bug ("digital marketing" -> stray "digital").
+  //
+  // Also tracks, best-effort, which ORIGINAL query word each expanded term came from
+  // (`byWord`) — used by the coverage bonus in scoreEntry() below to tell "one word
+  // matched hard" apart from "every word in the query matched something" (e.g.
+  // "αθλητική ψυχολογία" should prefer a program that is genuinely about both sports
+  // AND psychology over one that is only heavily about psychology).
   function expandQueryDetailed(q, CONCEPTS, vocab) {
     const allTerms = new Set();
-    const byWord = {}; // original query word -> Set of terms attributable to it (best-effort)
+    const byWord = {}; // original query word -> Set of terms attributable to it
+    const folded = getFoldedConcepts(CONCEPTS);
     queryVariants(q).forEach((variantText) => {
       const words = variantText.split(" ").filter((t) => t.length > 1 && !STOPWORDS.has(t));
       words.forEach((t) => {
@@ -217,38 +247,36 @@
         (byWord[t] = byWord[t] || new Set()).add(t);
       });
       const textTokens = new Set(words);
-      Object.values(CONCEPTS).forEach((conceptTerms) => {
-        const hit = conceptTerms.some((t) => phraseMatches(foldGreek(normalize(t)), variantText, textTokens));
+      folded.forEach((conceptTerms) => {
+        const hit = conceptTerms.some((t) => phraseMatches(t, variantText, textTokens));
         if (hit) {
-          const added = conceptTerms.slice(0, 6).map((t) => foldGreek(normalize(t)));
+          const added = conceptTerms.slice(0, 6);
           added.forEach((t) => allTerms.add(t));
-          // Attribute the concept's terms to whichever original word(s) plausibly
-          // triggered it (shares a substring with the trigger). Best-effort: if
-          // nothing matches, the terms still count for relevance (added above)
-          // just without contributing to the coverage bonus below.
+          // Attribute this concept's terms to whichever original word(s) plausibly
+          // triggered it (shares a substring with the trigger term). Best-effort: if
+          // nothing matches, the terms still count for relevance (added above),
+          // just without contributing to the coverage bonus.
           conceptTerms.forEach((ct) => {
-            const ctFolded = foldGreek(normalize(ct));
             words.forEach((w) => {
-              if (ctFolded.includes(w) || w.includes(ctFolded)) {
+              if (ct.includes(w) || w.includes(ct)) {
                 added.forEach((a) => (byWord[w] = byWord[w] || new Set()).add(a));
               }
             });
           });
         }
       });
+      // Generalized typo tolerance: correct tokens against real catalog vocabulary.
       if (vocab) {
         textTokens.forEach((tok) => {
           if (tok.length < 5 || STOPWORDS.has(tok)) return;
           fuzzyVocabMatches(tok, vocab).forEach((corrected) => {
             allTerms.add(corrected);
             (byWord[tok] = byWord[tok] || new Set()).add(corrected);
-            Object.values(CONCEPTS).forEach((conceptTerms) => {
-              const isTrigger = conceptTerms.some((ct) => foldGreek(normalize(ct)) === corrected);
-              if (isTrigger) {
+            folded.forEach((conceptTerms) => {
+              if (conceptTerms.includes(corrected)) {
                 conceptTerms.slice(0, 6).forEach((ct) => {
-                  const f = foldGreek(normalize(ct));
-                  allTerms.add(f);
-                  (byWord[tok] = byWord[tok] || new Set()).add(f);
+                  allTerms.add(ct);
+                  (byWord[tok] = byWord[tok] || new Set()).add(ct);
                 });
               }
             });
@@ -256,9 +284,9 @@
         });
       }
     });
-    const byWordArrays = {};
-    Object.entries(byWord).forEach(([k, v]) => { byWordArrays[k] = Array.from(v); });
-    return { termsFlat: Array.from(allTerms), byWord: byWordArrays };
+    const byWordArr = {};
+    Object.entries(byWord).forEach(([k, v]) => { byWordArr[k] = Array.from(v); });
+    return { termsFlat: Array.from(allTerms), byWord: byWordArr };
   }
 
   function expandQuery(q, CONCEPTS, vocab) {
@@ -282,81 +310,173 @@
     return false;
   }
 
+  // Raw (un-expanded) query containment. For very short single-token queries
+  // (<= SHORT_RAW_MAX chars, e.g. "ai", "hr", "ψυ") a plain substring test matches
+  // fragments inside almost every word of the catalog; those are matched as a WORD
+  // PREFIX instead ("ψυ" -> "ψυχολογία" still works for type-ahead, "hr" no longer
+  // matches "εργαστήριο"). Longer queries keep substring behaviour so partial words
+  // ("market" -> "marketing") still work exactly as before.
+  const SHORT_RAW_MAX = 3;
+  function rawContains(text, tokenSet, raw) {
+    if (raw.length > SHORT_RAW_MAX || raw.includes(" ")) return text.includes(raw);
+    for (const tok of tokenSet) {
+      if (tok.startsWith(raw)) return true;
+    }
+    return false;
+  }
+
   function fullText(p) {
     return foldGreek(normalize(
       [p.title, p.primary_area, (p.areas_of_study || []).join(" "), p.description_for_matching || p.description_full, (p.tags || []).join(" ")].join(" ")
     ));
   }
 
-  // How much to reward a program for genuinely covering MULTIPLE distinct query
-  // concepts (e.g. "αθλητική ψυχολογία") over one that just heavily matches a
-  // single concept. Deliberately modest relative to typical scores (100-250) —
-  // enough to lift a weak-but-broad match above a strong-but-narrow one when
-  // that's the only genuinely on-topic result, without overriding a program that
-  // is a strong match on its own.
-  const COVERAGE_BONUS_PER_EXTRA_CONCEPT = 70;
-
-  function score(p, q, CONCEPTS, vocab) {
-    const variants = queryVariants(q);
-    const { termsFlat: terms, byWord } = expandQueryDetailed(q, CONCEPTS, vocab);
+  // ---- Precomputed per-program index ----
+  function buildEntry(p) {
     const title = foldGreek(normalize(p.title));
     const primaryArea = foldGreek(normalize(p.primary_area));
     const area = foldGreek(normalize((p.areas_of_study || []).join(" ")));
     const tags = foldGreek(normalize((p.tags || []).join(" ")));
     const all = fullText(p);
-    const titleTok = new Set(title.split(" "));
-    const tagsTok = new Set(tags.split(" "));
-    const primaryAreaTok = new Set(primaryArea.split(" "));
-    const areaTok = new Set(area.split(" "));
-    const allTok = new Set(all.split(" "));
+    return {
+      p, title, primaryArea, area, tags, all,
+      titleTok: new Set(title.split(" ")),
+      tagsTok: new Set(tags.split(" ")),
+      primaryAreaTok: new Set(primaryArea.split(" ")),
+      areaTok: new Set(area.split(" ")),
+      allTok: new Set(all.split(" ")),
+    };
+  }
+
+  const indexCache = new WeakMap();
+  function getIndex(programs) {
+    let idx = indexCache.get(programs);
+    if (!idx) {
+      idx = { entries: programs.map(buildEntry), vocab: buildVocabulary(programs), rankCache: new Map(), rankCacheConcepts: null };
+      indexCache.set(programs, idx);
+    }
+    return idx;
+  }
+  function getVocabulary(programs) {
+    return getIndex(programs).vocab;
+  }
+
+  // How much to reward a program for genuinely covering MULTIPLE distinct query
+  // concepts (e.g. "αθλητική ψυχολογία") over one that just heavily matches a single
+  // concept. Deliberately modest relative to typical scores (100-250) — enough to lift
+  // a weak-but-broad match above a strong-but-narrow one when that's the only
+  // genuinely on-topic result, without overriding a program that is a strong match
+  // on its own.
+  const COVERAGE_BONUS_PER_EXTRA_CONCEPT = 70;
+
+  function scoreEntry(e, variants, terms, byWord) {
     let s = 0;
     variants.forEach((raw) => {
-      if (title === raw) s += 200;
-      if (title.includes(raw)) s += 100;
-      if (tags.includes(raw)) s += 90;
-      if (primaryArea.includes(raw)) s += 45; // official primary category - strong signal
-      else if (area.includes(raw)) s += 15; // only found among secondary/other listed categories - weaker signal
-      if (all.includes(raw)) s += 25;
+      if (e.title === raw) s += 200;
+      if (rawContains(e.title, e.titleTok, raw)) s += 100;
+      if (rawContains(e.tags, e.tagsTok, raw)) s += 90;
+      if (rawContains(e.primaryArea, e.primaryAreaTok, raw)) s += 45; // official primary category - strong signal
+      else if (rawContains(e.area, e.areaTok, raw)) s += 15; // only among secondary categories - weaker signal
+      if (rawContains(e.all, e.allTok, raw)) s += 25;
     });
     terms.forEach((t) => {
-      if (containsTerm(title, titleTok, t)) s += 18;
-      if (containsTerm(tags, tagsTok, t)) s += 15;
-      if (containsTerm(primaryArea, primaryAreaTok, t)) s += 8;
-      else if (containsTerm(area, areaTok, t)) s += 3;
-      if (containsTerm(all, allTok, t)) s += 3;
+      if (containsTerm(e.title, e.titleTok, t)) s += 18;
+      if (containsTerm(e.tags, e.tagsTok, t)) s += 15;
+      if (containsTerm(e.primaryArea, e.primaryAreaTok, t)) s += 8;
+      else if (containsTerm(e.area, e.areaTok, t)) s += 3;
+      if (containsTerm(e.all, e.allTok, t)) s += 3;
     });
-    // Coverage bonus: only evaluated when the query actually has 2+ distinct
-    // meaningful words — for a single-word (or single-concept) query this block
-    // is a no-op and `s` is returned exactly as the existing logic computed it.
-    const words = Object.keys(byWord);
-    if (s > 0 && words.length >= 2) {
-      let covered = 0;
-      words.forEach((w) => {
-        const hit = byWord[w].some((t) =>
-          containsTerm(title, titleTok, t) || containsTerm(tags, tagsTok, t) ||
-          containsTerm(primaryArea, primaryAreaTok, t) || containsTerm(area, areaTok, t) ||
-          containsTerm(all, allTok, t)
-        );
-        if (hit) covered++;
-      });
-      if (covered >= 2) s += (covered - 1) * COVERAGE_BONUS_PER_EXTRA_CONCEPT;
+    // Coverage bonus: only evaluated for queries with 2+ distinct meaningful words —
+    // a single-word/single-concept query never reaches this block with a nonzero
+    // effect, so it returns exactly what the logic above already computed.
+    //
+    // Deliberately checks ONLY title/tags/category, never the full description
+    // (`all`). A program's long-form description routinely name-drops unrelated
+    // words in passing (eligibility lists, "για όσους έχουν πτυχίο X ή Y..."), so
+    // treating any description substring as "this word is covered" let an unrelated
+    // program (e.g. one merely listing psychology graduates among eligible
+    // applicants) collect the bonus and outrank programs that are actually about the
+    // query's topics. Title/tags/category are curated per-program and don't have
+    // that problem.
+    if (byWord) {
+      const words = Object.keys(byWord);
+      if (s > 0 && words.length >= 2) {
+        let covered = 0;
+        words.forEach((w) => {
+          const hit = byWord[w].some((t) =>
+            containsTerm(e.title, e.titleTok, t) || containsTerm(e.tags, e.tagsTok, t) ||
+            containsTerm(e.primaryArea, e.primaryAreaTok, t) || containsTerm(e.area, e.areaTok, t)
+          );
+          if (hit) covered++;
+        });
+        if (covered >= 2) s += (covered - 1) * COVERAGE_BONUS_PER_EXTRA_CONCEPT;
+      }
     }
     return s;
   }
 
-  const MAX_QUERY_LENGTH = 700; // hard cap: no legitimate search needs more than this,
-  // and it bounds the cost of vocabulary fuzzy-matching (which scales with query token count).
-
-  function search(programs, concepts, query, k = 40) {
-    query = String(query || "").slice(0, MAX_QUERY_LENGTH);
-    const vocab = getVocabulary(programs);
-    return programs
-      .map((p) => ({ p, s: score(p, query, concepts, vocab) }))
-      .filter((x) => x.s > 0)
-      .sort((a, b) => b.s - a.s)
-      .slice(0, k)
-      .map((x) => ({ ...x.p, _score: x.s }));
+  // Backwards-compatible single-program scorer (same signature as v3). Slow path —
+  // only for ad-hoc use/tests; search()/rank() use the precomputed index.
+  function score(p, q, CONCEPTS, vocab) {
+    const { termsFlat: terms, byWord } = expandQueryDetailed(q, CONCEPTS, vocab);
+    return scoreEntry(buildEntry(p), queryVariants(q), terms, byWord);
   }
 
-  return { normalize, foldGreek, transliterateGreeklish, levenshtein, phraseMatches, expandQuery, containsTerm, score, search };
+  const MAX_QUERY_LENGTH = 700; // hard cap: no legitimate search needs more than this,
+  // and it bounds the cost of vocabulary fuzzy-matching (which scales with query token count).
+  const RANK_CACHE_SIZE = 300;
+
+  // Full ranking of all matching programs: [{ entryIndex, s }] sorted by score desc.
+  function rankAll(programs, concepts, query) {
+    query = String(query || "").slice(0, MAX_QUERY_LENGTH);
+    const idx = getIndex(programs);
+    if (idx.rankCacheConcepts !== concepts) { idx.rankCache.clear(); idx.rankCacheConcepts = concepts; }
+    const key = foldGreek(normalize(query)) + " " + query.toLowerCase();
+    const cached = idx.rankCache.get(key);
+    if (cached) { idx.rankCache.delete(key); idx.rankCache.set(key, cached); return cached; }
+
+    const variants = queryVariants(query);
+    const { termsFlat: terms, byWord } = expandQueryDetailed(query, concepts, idx.vocab);
+    const ranked = [];
+    if (variants.length) {
+      for (let i = 0; i < idx.entries.length; i++) {
+        const s = scoreEntry(idx.entries[i], variants, terms, byWord);
+        if (s > 0) ranked.push({ i, s });
+      }
+      ranked.sort((a, b) => b.s - a.s);
+    }
+    idx.rankCache.set(key, ranked);
+    if (idx.rankCache.size > RANK_CACHE_SIZE) idx.rankCache.delete(idx.rankCache.keys().next().value);
+    return ranked;
+  }
+
+  // rank(): all matches (optionally filtered), as program copies with a _score field.
+  function rank(programs, concepts, query, opts) {
+    const filter = opts && opts.filter;
+    const idx = getIndex(programs);
+    const out = [];
+    for (const { i, s } of rankAll(programs, concepts, query)) {
+      const p = idx.entries[i].p;
+      if (filter && !filter(p)) continue;
+      out.push(Object.assign({}, p, { _score: s }));
+    }
+    return out;
+  }
+
+  function search(programs, concepts, query, k = 40) {
+    const idx = getIndex(programs);
+    return rankAll(programs, concepts, query)
+      .slice(0, k)
+      .map(({ i, s }) => Object.assign({}, idx.entries[i].p, { _score: s }));
+  }
+
+  // Human-readable expansion of a query (used by index.html's "Expanded:" line).
+  function describeExpansion(programs, concepts, query) {
+    return expandQuery(String(query || "").slice(0, MAX_QUERY_LENGTH), concepts, getVocabulary(programs));
+  }
+
+  return {
+    normalize, foldGreek, transliterateGreeklish, levenshtein, phraseMatches, expandQuery,
+    expandQueryDetailed, containsTerm, score, search, rank, describeExpansion, getVocabulary, queryVariants,
+  };
 });

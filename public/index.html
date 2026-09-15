@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<!-- internal build: v4.2 (702 programs from live /search-ds endpoint, scraped descriptions, fixed matching, 60 concepts, related programs, image fallback, typo-tolerance, greeklish, stopwords) -->
+<!-- internal build: v4.3 (shared search-engine.js, 702 programs from live /search-ds endpoint, scraped descriptions, fixed matching, 60 concepts, related programs, image fallback, typo-tolerance, greeklish, stopwords) -->
 <title>EKPA Smart Finder</title>
 <style>
 :root{--blue:#0b4f8a;--dark:#073965;--bg:#f5f7fa;--border:#dfe5ec;--text:#17212b;--muted:#667085;--green:#087443;--amber:#a15c00}
@@ -66,13 +66,14 @@ input:focus,select:focus{border-color:var(--blue);box-shadow:0 0 0 4px rgba(11,7
 <body>
 <header class="hero"><div class="hero-inner">
 <h1>EKPA Smart Finder</h1>
-<p>Βρες γρήγορα το πρόγραμμα επιμόρφωσης που σου ταιριάζει, ανάμεσα σε 702 επιλογές.</p>
+<p>Βρες γρήγορα το πρόγραμμα επιμόρφωσης που σου ταιριάζει, ανάμεσα σε <span id="heroCount">702</span> επιλογές.</p>
 </div></header>
 <main class="wrapper">
 <section class="panel">
 <div class="row">
 <input id="q" type="search" placeholder="">
 <select id="area"></select>
+<select id="sort"><option value="relevance">Ταξινόμηση: Σχετικότητα</option><option value="price_asc">Τιμή: Χαμηλή &rarr; Υψηλή</option><option value="price_desc">Τιμή: Υψηλή &rarr; Χαμηλή</option></select>
 </div>
 </section>
 <div class="stats">
@@ -99,262 +100,48 @@ input:focus,select:focus{border-color:var(--blue);box-shadow:0 0 0 4px rgba(11,7
   </div>
   <div id="fcw-messages"></div>
   <div id="fcw-inputrow">
-    <input id="fcw-input" type="text" placeholder="π.χ. Ψάχνω κάτι σε HR, τι προτείνεις;">
+    <input id="fcw-input" type="text" maxlength="700" placeholder="π.χ. Ψάχνω κάτι σε HR, τι προτείνεις;">
     <button id="fcw-send">Στείλε</button>
   </div>
   <div id="fcw-note">Ο βοηθός ανακτά τα πιο σχετικά προγράμματα με τη δική μας μηχανή αναζήτησης και μετά συνθέτει απάντηση μέσω AI (backend proxy, ποτέ απευθείας από τον browser).</div>
 </div>
 
+<script src="search-engine.js"></script>
 <script>
+// All search/scoring logic lives in search-engine.js (window.EkpaSearch) — the SAME file
+// the backend uses for /api/search and /api/chat retrieval. v3 kept a second, hand-copied
+// engine here, which is how a performance fix ended up applied to one copy but not the other.
 let PROGRAMS = [];
 let CONCEPTS = {};
-document.addEventListener("DOMContentLoaded", function () {
-  var loadingEl = document.getElementById("appLoading");
-  if (loadingEl) loadingEl.style.display = "block";
-});
 (async function () {
   try {
-    const [progRes, concRes] = await Promise.all([fetch("/api/programs"), fetch("concepts.json")]);
+    const [progRes, concRes] = await Promise.all([fetch("/api/programs"), fetch("concepts.json", { cache: "no-cache" })]);
     if (!progRes.ok || !concRes.ok) throw new Error("Αποτυχία φόρτωσης δεδομένων καταλόγου");
     PROGRAMS = await progRes.json();
     CONCEPTS = await concRes.json();
   } catch (e) {
-    document.body.insertAdjacentHTML("afterbegin",
-      '<div style="background:#fee;color:#900;padding:12px;text-align:center;font-family:sans-serif">Σφάλμα φόρτωσης δεδομένων: ' + e.message + '. Έλεγξε ότι το /api/programs και το /concepts.json σερβίρονται από τον ίδιο server.</div>');
+    const bar = document.createElement("div");
+    bar.style.cssText = "background:#fee;color:#900;padding:12px;text-align:center;font-family:sans-serif";
+    bar.textContent = "Σφάλμα φόρτωσης δεδομένων: " + e.message + ". Έλεγξε ότι το /api/programs και το /concepts.json σερβίρονται από τον ίδιο server.";
+    document.body.insertAdjacentElement("afterbegin", bar);
     return;
   }
-  var loadingEl = document.getElementById("appLoading");
-  if (loadingEl) loadingEl.style.display = "none";
 
-const PROGRAMS_BY_ID = {};
-PROGRAMS.forEach(p=>{PROGRAMS_BY_ID[p.id]=p;});
-const state = {q:"",area:""};
+const Engine = window.EkpaSearch;
+// Programs are identified by slug (always present & unique). ~1/3 of the catalog has
+// id:null, so ids are only used to resolve similar_program_ids.
+const PROGRAMS_BY_ID = new Map();
+PROGRAMS.forEach(p => { if (p.id != null) PROGRAMS_BY_ID.set(p.id, p); });
+const state = {q:"",area:"",sort:"relevance"};
 
-// Common function words that carry no topical meaning - excluded from scoring terms
-// so they don't dilute relevance in multi-word queries (e.g. "μαρκετινγκ και πωλησεις"
-// shouldn't get extra points just because "και" appears in almost every program).
-const STOPWORDS=new Set(["και","για","της","του","των","το","τα","τον","την","με","από","στο","στη","στην","στον","στα","είναι","ένα","μία","μια","ή","αλλα","αλλά","that","and","the","of","in","for","to","a","an","with","on","προγραμμα","προγραμματα","program","programs"]);
+function esc(v){return String(v==null?"":v).replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;");}
 
-function normalize(v){return String(v||"").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^\p{L}\p{N}]+/gu," ").replace(/\s+/g," ").trim();}
-// Fold Greek letters that sound identical in Modern Greek (iotacism: η/υ/ει/οι/υι all
-// sound like "ι"; ω sounds like "ο"). Applied to ALL Greek text (catalog data AND
-// queries) so spelling variants and transliterated greeklish converge to the same form.
-// Never touches Latin letters, so English text/titles are completely unaffected.
-function foldGreek(s){return s.replace(/ει|οι|υι/g,"ι").replace(/η/g,"ι").replace(/υ/g,"ι").replace(/ω/g,"ο");}
-const GREEKLISH_DIGRAPHS=[["th","θ"],["ps","ψ"],["ks","ξ"],["ch","χ"],["ou","ου"],["ai","αι"],["ei","ει"],["oi","οι"],["mp","μπ"],["nt","ντ"],["gk","γκ"],["gg","γγ"],["ts","τσ"],["tz","τζ"]];
-const GREEKLISH_SINGLE={a:"α",b:"β",c:"κ",d:"δ",e:"ε",f:"φ",g:"γ",h:"η",i:"ι",j:"ζ",k:"κ",l:"λ",m:"μ",n:"ν",o:"ο",p:"π",q:"κ",r:"ρ",s:"σ",t:"τ",u:"ου",v:"β",w:"ω",x:"χ",y:"υ",z:"ζ"};
-function transliterateGreeklish(latinLower){
-  let out="",i=0;
-  while(i<latinLower.length){
-    const two=latinLower.slice(i,i+2);
-    const dg=GREEKLISH_DIGRAPHS.find(([lat])=>lat===two);
-    if(dg){out+=dg[1];i+=2;continue;}
-    const ch=latinLower[i];
-    if(GREEKLISH_SINGLE[ch]){out+=GREEKLISH_SINGLE[ch];i+=1;continue;}
-    out+=ch;i+=1;
-  }
-  return out;
-}
-function isLikelyGreeklish(text){return /[a-z]/i.test(text) && !/[\u0370-\u03FF\u1F00-\u1FFF]/.test(text);}
-// A query is checked in both its normal form AND (if it looks like Latin-script Greek)
-// a transliterated-to-Greek form - e.g. "psixologia" -> "ψιχολογια" (folded), which now
-// lines up with "ψυχολογία" in the catalog (also folded to "ψιχολογια").
-// Greek "αυ"/"ευ" are pronounced (and often typed in Greeklish) as "af"/"av" or
-// "ef"/"ev" depending on the following consonant's voicing (e.g. "ναυτιλιακά" is
-// commonly typed "naftiliaka"). We can't reliably tell from Latin letters alone
-// whether "f"/"v" was meant as itself (φ/β) or as part of a diphthong, so when
-// this pattern appears we try the diphthong reading too, as an extra candidate.
-function transliterateGreeklishAuEu(latinLower){
-  const marked=latinLower.replace(/av/g,"\u0001").replace(/af/g,"\u0001").replace(/ev/g,"\u0002").replace(/ef/g,"\u0002");
-  return transliterateGreeklish(marked).replace(/\u0001/g,"αυ").replace(/\u0002/g,"ευ");
-}
-function queryVariants(q){
-  const variants=new Set();
-  const base=foldGreek(normalize(q));
-  if(base) variants.add(base);
-  const lower=String(q||"").toLowerCase();
-  if(isLikelyGreeklish(lower)){
-    const translit=foldGreek(normalize(transliterateGreeklish(lower)));
-    if(translit) variants.add(translit);
-    if(/a[fv]|e[fv]/.test(lower)){
-      const translit2=foldGreek(normalize(transliterateGreeklishAuEu(lower)));
-      if(translit2) variants.add(translit2);
-    }
-  }
-  return Array.from(variants);
-}
-function esc(v){return String(v||"").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;");}
-function levenshtein(a,b){if(a===b)return 0;if(a.length<b.length){[a,b]=[b,a]}let prev=Array.from({length:b.length+1},(_,i)=>i);for(let i=1;i<=a.length;i++){let curr=[i];for(let j=1;j<=b.length;j++){curr[j]=Math.min(prev[j]+1,curr[j-1]+1,prev[j-1]+(a[i-1]===b[j-1]?0:1));}prev=curr;}return prev[b.length];}
-
-// FIXED matching: whole-word for single-token triggers, whole-phrase (word-boundary) for multi-word triggers.
-// No more raw a.includes(b) that let short/prefix words fire unrelated concepts.
-// Genuine typos almost always share their opening letters (e.g. "διαφημιση"/"διαφιμιση").
-// Words that are only "close" because Greek phonetic folding collapsed a shared SUFFIX
-// (e.g. "ψυχολογια"/"οινολογια" both end in -ολογια after folding) do NOT share a
-// prefix — requiring one filters out exactly that false-positive class without
-// weakening real typo tolerance.
-const MIN_SHARED_PREFIX=3;
-function sharesPrefix(a,b,n){
-  if(!a||!b||a[0]!==b[0]) return false;
-  if(a.length===b.length) return a.slice(0,n)===b.slice(0,n);
-  const longer=a.length>b.length?a:b, shorter=a.length>b.length?b:a;
-  const shortPrefix=shorter.slice(0,n);
-  for(let i=1;i<Math.min(longer.length,n+1);i++){
-    if(longer[i]===longer[i-1]){
-      const candidate=longer.slice(0,i)+longer.slice(i+1);
-      if(candidate.slice(0,n)===shortPrefix) return true;
-    }
-  }
-  return false;
-}
-function phraseMatches(triggerNorm, textNorm, textTokenSet){
-  const trigTokens = triggerNorm.split(" ");
-  if(trigTokens.length===1){
-    const t=trigTokens[0];
-    if(textTokenSet.has(t)) return true;
-    if(t.length>=6){
-      for(const tok of textTokenSet){
-        if(Math.abs(tok.length-t.length)<=1 && tok.length>=6 && sharesPrefix(t,tok,MIN_SHARED_PREFIX) && levenshtein(t,tok)<=1) return true;
-      }
-    }
-    return false;
-  }
-  return (" "+textNorm+" ").includes(" "+triggerNorm+" ");
-}
-function expandQueryDetailed(q){
-  const allTerms=new Set();
-  const byWord={}; // original query word -> Set of terms attributable to it (best-effort)
-  queryVariants(q).forEach(variantText=>{
-    const words=variantText.split(" ").filter(t=>t.length>1 && !STOPWORDS.has(t));
-    words.forEach(t=>{ allTerms.add(t); (byWord[t]=byWord[t]||new Set()).add(t); });
-    const textTokens=new Set(words);
-    Object.values(CONCEPTS).forEach(conceptTerms=>{
-      const hit=conceptTerms.some(t=>phraseMatches(foldGreek(normalize(t)),variantText,textTokens));
-      if(hit){
-        const added=conceptTerms.slice(0,6).map(t=>foldGreek(normalize(t)));
-        added.forEach(t=>allTerms.add(t));
-        conceptTerms.forEach(ct=>{
-          const ctFolded=foldGreek(normalize(ct));
-          words.forEach(w=>{ if(ctFolded.includes(w)||w.includes(ctFolded)) added.forEach(a=>(byWord[w]=byWord[w]||new Set()).add(a)); });
-        });
-      }
-    });
-    textTokens.forEach(tok=>{
-      if(tok.length<5 || STOPWORDS.has(tok)) return;
-      fuzzyVocabMatches(tok).forEach(corrected=>{
-        allTerms.add(corrected);
-        (byWord[tok]=byWord[tok]||new Set()).add(corrected);
-        Object.values(CONCEPTS).forEach(conceptTerms=>{
-          const isTrigger=conceptTerms.some(ct=>foldGreek(normalize(ct))===corrected);
-          if(isTrigger) conceptTerms.slice(0,6).forEach(ct=>{ const f=foldGreek(normalize(ct)); allTerms.add(f); (byWord[tok]=byWord[tok]||new Set()).add(f); });
-        });
-      });
-    });
-  });
-  const byWordArrays={};
-  Object.entries(byWord).forEach(([k,v])=>{ byWordArrays[k]=Array.from(v); });
-  return {termsFlat:Array.from(allTerms), byWord:byWordArrays};
-}
-function expandQuery(q){
-  return expandQueryDetailed(q).termsFlat; // multi-word terms stay intact as phrases, not flattened into loose single words
-}
-// Boundary-safe term containment for a (possibly multi-word) expanded term:
-// - multi-word term: must appear as a contiguous phrase with word boundaries (fixes "digital marketing" -> stray "digital" match on any AI course)
-// - single-word term <=3 chars (e.g. "ai","it","hr"): exact token match only
-// - single-word term >3 chars: must cover >=60% of the token's length it's found in
-//   (lets it match inflected forms of the same root, e.g. "ινος"/"οίνου", but
-//   rejects coincidental fragments buried in a much longer unrelated word,
-//   e.g. "ινος"/wine spuriously matching inside "ανθρώπινος"/"καρκίνος")
-const MIN_TERM_TOKEN_OVERLAP=0.75;
-function containsTerm(textAll, tokenSet, term){
-  if(term.includes(" ")) return (" "+textAll+" ").includes(" "+term+" ");
-  if(term.length<=3) return tokenSet.has(term);
-  for(const tok of tokenSet){
-    if(tok.includes(term) && term.length/tok.length>=MIN_TERM_TOKEN_OVERLAP) return true;
-  }
-  return false;
-}
-// Generalized typo-tolerance: build a vocabulary from words that ACTUALLY occur in
-// the catalog (titles + official categories only - deliberately excluding tags and
-// free-text descriptions, which is exactly where the "digital marketing" -> stray
-// "digital" bug came from). Words are further filtered by document frequency: a word
-// used in too many programs (like "διοικηση") is too generic to be a safe
-// typo-correction target - correcting to it would just reintroduce the old cascade bug.
-function buildVocabulary(programs){
-  const freq=new Map();
-  programs.forEach(p=>{
-    const seen=new Set();
-    [p.title,(p.areas_of_study||[]).join(" ")].forEach(f=>{
-      foldGreek(normalize(f)).split(" ").forEach(t=>{ if(t.length>=5 && !STOPWORDS.has(t)) seen.add(t); });
-    });
-    seen.forEach(t=>freq.set(t,(freq.get(t)||0)+1));
-  });
-  return Array.from(freq.entries()).filter(([,c])=>c>=1 && c<=20).map(([w])=>w);
-}
-const VOCAB = buildVocabulary(PROGRAMS);
-function fuzzyVocabMatches(token){
-  if(token.length<5) return []; // too short/ambiguous to safely fuzzy-correct
-  const maxDist = token.length>=9 ? 2 : 1;
-  const out=[];
-  for(const word of VOCAB){
-    if(word===token) continue;
-    if(Math.abs(word.length-token.length)>maxDist) continue;
-    if(!sharesPrefix(token,word,MIN_SHARED_PREFIX)) continue;
-    if(levenshtein(token,word)<=maxDist) out.push(word);
-  }
-  return out.slice(0,3); // cap: only the closest few, never a broad list
-}
-function text(p){return foldGreek(normalize([p.title,p.primary_area,(p.areas_of_study||[]).join(" "),p.description_for_matching||p.description_full,(p.tags||[]).join(" ")].join(" ")));}
-// Precomputed once per program at load time (title/area/tags/full-text + token sets).
-// score() used to recompute all of this from scratch for every program on every single
-// keystroke, which is the main reason typing felt laggy — now it's done once here.
-const PROGRAM_IDX = PROGRAMS.map(p=>{
-  const title=foldGreek(normalize(p.title)), primaryArea=foldGreek(normalize(p.primary_area)),
-        area=foldGreek(normalize((p.areas_of_study||[]).join(" "))), tags=foldGreek(normalize((p.tags||[]).join(" "))),
-        all=text(p);
-  return {
-    p, title, primaryArea, area, tags, all,
-    titleTok:new Set(title.split(" ")), tagsTok:new Set(tags.split(" ")),
-    primaryAreaTok:new Set(primaryArea.split(" ")), areaTok:new Set(area.split(" ")), allTok:new Set(all.split(" "))
-  };
-});
-const COVERAGE_BONUS_PER_EXTRA_CONCEPT=70;
-function score(idx,variants,terms,byWord){
-  const {title,primaryArea,area,tags,all,titleTok,tagsTok,primaryAreaTok,areaTok,allTok}=idx;
-  let s=0;
-  variants.forEach(raw=>{
-    if(title===raw)s+=200; if(title.includes(raw))s+=100; if(tags.includes(raw))s+=90;
-    if(primaryArea.includes(raw))s+=45; else if(area.includes(raw))s+=15; // official primary category weighs more than a merely-listed secondary one
-    if(all.includes(raw))s+=25;
-  });
-  terms.forEach(t=>{
-    if(containsTerm(title,titleTok,t))s+=18;
-    if(containsTerm(tags,tagsTok,t))s+=15;
-    if(containsTerm(primaryArea,primaryAreaTok,t))s+=8; else if(containsTerm(area,areaTok,t))s+=3;
-    if(containsTerm(all,allTok,t))s+=3;
-  });
-  // Coverage bonus: only evaluated for queries with 2+ distinct meaningful words —
-  // a single-word/single-concept query never reaches this block with a nonzero
-  // effect, so it returns exactly what the existing logic above already computed.
-  if(byWord){
-    const words=Object.keys(byWord);
-    if(s>0 && words.length>=2){
-      let covered=0;
-      words.forEach(w=>{
-        const hit=byWord[w].some(t=>containsTerm(title,titleTok,t)||containsTerm(tags,tagsTok,t)||containsTerm(primaryArea,primaryAreaTok,t)||containsTerm(area,areaTok,t)||containsTerm(all,allTok,t));
-        if(hit) covered++;
-      });
-      if(covered>=2) s+=(covered-1)*COVERAGE_BONUS_PER_EXTRA_CONCEPT;
-    }
-  }
-  return s;
-}
 // Matches the order categories appear in elearningekpa.gr's own navigation menu
 // (fetched 15/9/2026: https://elearningekpa.gr/categories). Anything in our data
 // that isn't in this list (more granular sub-areas the site menu doesn't surface
 // separately) falls back to alphabetical, after all of these.
 const SITE_CATEGORY_ORDER=["Μοριοδοτούμενα Προγράμματα Παιδαγωγικών & Ειδικής Αγωγής","Ψυχολογία - Ψυχιατρική","Διοίκηση Ανθρώπινου Δυναμικού","Οργάνωση και Διοίκηση Επιχειρήσεων","Τεχνητή Νοημοσύνη (AI)","Marketing και Πωλήσεις","Πολιτισμός και Εξωστρέφεια","Πληροφορική - Δίκτυα - Web Design - Μοντάζ","Υγεία","Τουριστικά","Ανάλυση Δεδομένων - Στατιστική","Coaching","Cisco Networking Academy","Προγράμματα με Πιστοποίηση από TÜV HELLAS (TÜV NORD)","Ψηφιακές Δεξιότητες για το Μέλλον","Χρηματοοικονομική και Τραπεζική","Κατεύθυνση Προγραμμάτων Ανάπτυξης  Επαγγελματικών Δεξιοτήτων","Web Development","Security Sciences (Επιστήμες Ασφάλειας)","Real Estate","Λογιστική","Ναυτιλιακά","Νομικά","Αισθητική Προσώπου Σώματος -Medical Tattoo-Κοσμητολογία","Ψηφιακός Μετασχηματισμός","Περιβάλλον και Ανάπτυξη","Logistics","Παιδαγωγικά","Ειδική Αγωγή","Εγκληματολογία","Διαιτολογία - Διατροφή"];
-function areaCounts(){
+const AREA_COUNTS = (function(){
   const m=new Map();
   PROGRAMS.forEach(p=>(p.areas_of_study||[]).forEach(a=>m.set(a,(m.get(a)||0)+1)));
   return [...m.entries()].sort((a,b)=>{
@@ -362,48 +149,52 @@ function areaCounts(){
     const pa=ia===-1?Infinity:ia, pb=ib===-1?Infinity:ib;
     return pa-pb || a[0].localeCompare(b[0],"el");
   });
-}
+})();
+const TITLE_SORTED = PROGRAMS.slice().sort((a,b)=>String(a.title).localeCompare(String(b.title),"el"));
+
 function getResults(){
-  let idxArr=PROGRAM_IDX;
-  if(state.area) idxArr=idxArr.filter(x=>(x.p.areas_of_study||[]).includes(state.area));
+  const filter = state.area ? (p => (p.areas_of_study||[]).includes(state.area)) : null;
   let out;
   if(state.q.trim().length>=2){
-    const variants=queryVariants(state.q), {termsFlat:terms, byWord}=expandQueryDetailed(state.q); // computed ONCE per keystroke, not per program
-    out = idxArr.map(x=>({p:x.p,s:score(x,variants,terms,byWord)})).filter(x=>x.s>0).sort((a,b)=>b.s-a.s).map(x=>({...x.p,_score:x.s}));
+    out = Engine.rank(PROGRAMS, CONCEPTS, state.q, { filter });
+  } else {
+    out = (filter ? TITLE_SORTED.filter(filter) : TITLE_SORTED).map(p=>({...p,_score:0}));
   }
-  else { out = idxArr.map(x=>x.p).slice().sort((a,b)=>String(a.title).localeCompare(String(b.title),"el")).map(p=>({...p,_score:0})); }
+  if(state.sort==="price_asc") out=out.slice().sort((a,b)=>(a.price??1e9)-(b.price??1e9));
+  if(state.sort==="price_desc") out=out.slice().sort((a,b)=>(b.price??-1)-(a.price??-1));
   return out;
 }
 function renderAreas(){
-  const a=areaCounts();
-  document.getElementById("area").innerHTML='<option value="">Όλες οι κατευθύνσεις</option>'+a.map(([x,c])=>`<option value="${esc(x)}">${esc(x)} (${c})</option>`).join("");
+  document.getElementById("area").innerHTML='<option value="">Όλες οι κατευθύνσεις</option>'+AREA_COUNTS.map(([x,c])=>`<option value="${esc(x)}">${esc(x)} (${c})</option>`).join("");
 }
 function render(){
   const r=getResults(), shown=r.slice(0,40);
   trackSearchAnalytics(state.q,r.length);
+  const conceptCount=Object.keys(CONCEPTS).length;
   document.getElementById("sPrograms").textContent=PROGRAMS.length;
-  document.getElementById("sAreas").textContent=areaCounts().length;
-  document.getElementById("sConcepts").textContent=Object.keys(CONCEPTS).length;
+  document.getElementById("heroCount").textContent=PROGRAMS.length;
+  document.getElementById("sAreas").textContent=AREA_COUNTS.length;
+  document.getElementById("sConcepts").textContent=conceptCount;
   document.getElementById("sResults").textContent=r.length;
   document.getElementById("sFull").textContent=PROGRAMS.filter(p=>p.description_full&&p.description_full.length>30).length;
   document.getElementById("info").textContent=`${r.length} αποτελέσματα · εμφανίζονται ${shown.length}`;
-  document.getElementById("expanded").innerHTML=state.q.trim().length>=2?`<b>Expanded:</b> ${esc(expandQuery(state.q).join(", "))}`:"Η αναζήτηση κάνει expansion σε 60 concepts με whole-word/phrase matching.";
+  document.getElementById("expanded").innerHTML=state.q.trim().length>=2?`<b>Expanded:</b> ${esc(Engine.describeExpansion(PROGRAMS,CONCEPTS,state.q).join(", "))}`:`Η αναζήτηση κάνει expansion σε ${conceptCount} concepts με whole-word/phrase matching.`;
   const el=document.getElementById("results");
   if(!shown.length){el.innerHTML='<div class="empty">Δεν βρέθηκαν αποτελέσματα.</div>';return;}
   el.innerHTML=shown.map(p=>{
     const img=p.image_url||"";
-    const priceHtml=p.price!=null?`<span class="price">${p.price}&euro;</span>`:"";
+    const priceHtml=p.price!=null?`<span class="price">${esc(p.price)}&euro;</span>`:"";
     const hasDesc=p.description_full&&p.description_full.length>30;
     const tags=(p.tags||[]).slice(0,10).map(t=>`<span class="tag">${esc(t)}</span>`).join("");
     const scoreBadge = state.q.trim().length>=2 ? `<span class="tag score">score ${Math.round(p._score)}</span>` : "";
-    const related=(p.similar_program_ids||[]).filter(id=>id!==p.id).map(id=>PROGRAMS_BY_ID[id]).filter(Boolean).slice(0,3);
-    const relatedHtml=related.length?`<div class="related"><span class="related-label">Σχετικά:</span> ${related.map(r=>`<a href="${esc(r.url)}" target="_blank" rel="noopener" data-id="${esc(String(r.id))}">${esc(r.title)}</a>`).join(" &middot; ")}</div>`:"";
+    const related=(p.similar_program_ids||[]).filter(id=>id!==p.id).map(id=>PROGRAMS_BY_ID.get(id)).filter(Boolean).slice(0,3);
+    const relatedHtml=related.length?`<div class="related"><span class="related-label">Σχετικά:</span> ${related.map(r=>`<a href="${esc(r.url)}" target="_blank" rel="noopener" data-key="${esc(r.slug)}">${esc(r.title)}</a>`).join(" &middot; ")}</div>`:"";
     const initial=esc((p.title||"?").trim().charAt(0).toUpperCase());
-    const descSnippet = p.description_full && p.description_full.length > 30
+    const descSnippet = hasDesc
       ? `<p class="card-desc">${esc(p.description_full.slice(0, 180))}${p.description_full.length > 180 ? '&hellip;' : ''}</p>`
       : '';
     return `<article class="card"><div class="card-img-wrap"><img class="card-img" src="${esc(img)}" alt="" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"><div class="card-img-fallback">${initial}</div></div><div class="card-body">
-      <h3><a href="${esc(p.url)}" target="_blank" rel="noopener" data-id="${esc(String(p.id))}">${esc(p.title)}</a></h3>
+      <h3><a href="${esc(p.url)}" target="_blank" rel="noopener" data-key="${esc(p.slug)}">${esc(p.title)}</a></h3>
       <div class="meta-row">${priceHtml}${hasDesc?'':'<span class="completeness">χωρίς περιγραφή</span>'}</div>
       ${descSnippet}
       <div class="tags">${scoreBadge}${tags}</div>
@@ -411,15 +202,13 @@ function render(){
     </div></article>`;
   }).join("");
 }
-// Click tracking (visibility only, see HANDOVER-NOTES.md / ADMIN-PANEL-GUIDE.md).
-// Delegated on the results container so it works for every re-render without
-// re-attaching listeners per card.
-function trackResultClick(programId,query){
-  if(!programId) return;
-  const payload=JSON.stringify({query,program_id:programId});
+// Tracking (visibility only, see HANDOVER-NOTES.md / ADMIN-PANEL-GUIDE.md).
+// Sent as text/plain so sendBeacon never needs a CORS preflight.
+function postBeacon(url,obj){
+  const payload=JSON.stringify(obj);
   try{
-    if(navigator.sendBeacon){ navigator.sendBeacon("/api/track-click", new Blob([payload],{type:"application/json"})); }
-    else { fetch("/api/track-click",{method:"POST",headers:{"Content-Type":"application/json"},body:payload,keepalive:true}); }
+    if(navigator.sendBeacon && navigator.sendBeacon(url,new Blob([payload],{type:"text/plain;charset=UTF-8"}))) return;
+    fetch(url,{method:"POST",headers:{"Content-Type":"text/plain;charset=UTF-8"},body:payload,keepalive:true}).catch(()=>{});
   }catch(e){}
 }
 let _lastTrackedQuery="";
@@ -427,13 +216,11 @@ function trackSearchAnalytics(query,resultCount){
   const q=(query||"").trim();
   if(q.length<2 || q===_lastTrackedQuery) return; // same threshold as getResults(); skip repeat renders of the same query
   _lastTrackedQuery=q;
-  try{
-    fetch("/api/track-search",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({query:q,result_count:resultCount}),keepalive:true});
-  }catch(e){}
+  postBeacon("/api/track-search",{query:q,result_count:resultCount});
 }
 document.getElementById("results").addEventListener("click",e=>{
-  const a=e.target.closest("a[data-id]");
-  if(a) trackResultClick(a.dataset.id,state.q);
+  const a=e.target.closest("a[data-key]");
+  if(a) postBeacon("/api/track-click",{query:state.q,program_id:a.dataset.key});
 });
 let _searchDebounce=null;
 document.getElementById("q").oninput=e=>{
@@ -442,17 +229,11 @@ document.getElementById("q").oninput=e=>{
   _searchDebounce=setTimeout(render,120);
 };
 document.getElementById("area").onchange=e=>{state.area=e.target.value;render();};
+document.getElementById("sort").onchange=e=>{state.sort=e.target.value;render();};
 renderAreas();render();
 
-// ---- AI Βοηθός (retrieval μέσω της δικής μας score(), generation μέσω Claude API) ----
+// ---- AI Βοηθός: retrieval + LLM call happen ONLY in the backend (/api/chat) ----
 const chatHistory=[];
-function retrieveCandidates(query,k){
-  const variants=queryVariants(query), {termsFlat:terms, byWord}=expandQueryDetailed(query);
-  return PROGRAM_IDX.map(x=>({p:x.p,s:score(x,variants,terms,byWord)})).filter(x=>x.s>0).sort((a,b)=>b.s-a.s).slice(0,k).map(x=>x.p);
-}
-function candidatesToContext(list){
-  return list.map(p=>`- ${p.title} | κατεύθυνση: ${p.primary_area||"—"} | τιμή: ${p.price!=null?p.price+"€":"άγνωστη"} | url: ${p.url} | περιγραφή: ${(p.description_full||"").slice(0,280).replace(/\s+/g," ")}`).join("\n");
-}
 function appendMsg(role,content){
   const el=document.getElementById("fcw-messages");
   const div=document.createElement("div");
@@ -474,13 +255,11 @@ async function sendChat(){
   const input=document.getElementById("fcw-input");
   const sendBtn=document.getElementById("fcw-send");
   const msg=input.value.trim();
-  if(!msg) return;
+  if(!msg || sendBtn.disabled) return;
+  if(msg.length>700){ appendMsg("assistant","Το μήνυμα είναι πολύ μεγάλο (μέγιστο 700 χαρακτήρες)."); return; }
   input.value="";
   sendBtn.disabled=true;
   appendMsg("user",msg);
-  const candidates=retrieveCandidates(msg,8);
-  const systemPrompt="Είσαι ο AI Βοηθός Επιλογής Προγράμματος του E-Learning ΕΚΠΑ. Απάντα ΜΟΝΟ με βάση τα προγράμματα της λίστας παρακάτω (μην εφευρίσκεις προγράμματα ή τιμές που δεν υπάρχουν εκεί). Απάντα στα Ελληνικά, σύντομα και με σαφήνεια, και ανέφερε συγκεκριμένα προγράμματα με το url τους όταν ταιριάζουν στο ερώτημα. Αν δεν βρίσκεις κάτι σχετικό στη λίστα, πες το ειλικρινά.\n\nΠιο σχετικά προγράμματα με το τρέχον ερώτημα:\n"+candidatesToContext(candidates);
-  chatHistory.push({role:"user",content:msg});
   const pending=appendMsg("assistant","…");
   try{
     const resp=await fetch("/api/chat",{
@@ -488,10 +267,11 @@ async function sendChat(){
       headers:{"Content-Type":"application/json"},
       body:JSON.stringify({message:msg,history:chatHistory.slice(-10)})
     });
-    const data=await resp.json();
-    if(!resp.ok) throw new Error(data.error||"Server error");
+    const data=await resp.json().catch(()=>({}));
+    if(!resp.ok) throw new Error(data.error||"Σφάλμα server");
     const reply=data.reply||"Δεν έλαβα απάντηση.";
-    chatHistory.push({role:"assistant",content:reply});
+    // Only successful exchanges enter the history (keeps user/assistant turns paired).
+    chatHistory.push({role:"user",content:msg},{role:"assistant",content:reply});
     updateMsg(pending,reply);
   }catch(e){
     updateMsg(pending,"Σφάλμα: "+e.message);

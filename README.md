@@ -14,12 +14,13 @@
 ```
 public/
   index.html         το frontend (instant search + chat UI)
-  search-engine.js    η μηχανή αναζήτησης (fixed matching, 60 concepts) — χρησιμοποιείται
-                       ΚΑΙ από το frontend ΚΑΙ από το backend, ίδιος κώδικας, καμία απόκλιση
+  search-engine.js    η μηχανή αναζήτησης (fixed matching, 60 concepts) — το ΜΟΝΑΔΙΚΟ
+                       αντίγραφο: το φορτώνει ο server (require) και το index.html (<script src>)
   programs.json        702 προγράμματα (merged AdWords + Facebook feed)
   concepts.json        60 concepts (ένα ανά επίσημη κατεύθυνση του site)
 server/
-  server.js            Express backend: /api/chat, /api/search, /health
+  server.js            Express backend: /api/chat, /api/search, /api/programs, /concepts.json,
+                       /api/track-*, /api/admin/*, /health
 .env.example            αντίγραψέ το σε .env και βάλε το δικό σου key (τοπικά μόνο —
                          στο Railway τα ίδια ονόματα μπαίνουν στο Variables tab)
 package.json
@@ -34,6 +35,12 @@ cp .env.example .env
 npm start
 # άνοιξε http://localhost:8787
 ```
+
+## Μόνιμα δεδομένα (`DATA_DIR`)
+
+Το taxonomy που αλλάζει από το admin panel και τα analytics γράφονται στο `DATA_DIR`
+(εκτός κώδικα). Σε production **πρέπει** να οριστεί — δες `DEPLOY-Railway.md` §2 ή
+`DEPLOY-SelfHosted.md` §3. Τοπικά μπορεί να μείνει κενό.
 
 ## Αλλαγή πάροχου LLM
 
@@ -73,8 +80,8 @@ ANTHROPIC_API_KEY=sk-ant-...
 3. Settings → Networking → Generate Domain (δίνει το `*.up.railway.app` URL) ή
    πρόσθεσε custom domain.
 4. Settings → Healthcheck Path: `/health`.
-5. Ενημέρωσε το `BACKEND_URL` στο `ekpa-search-widget-gtm-v2.js` (GTM Custom HTML tag)
-   με το URL από το βήμα 3.
+5. Volume στο `/data` + `DATA_DIR=/data`.
+6. Ενημέρωσε το GTM Variable `EKPA Backend URL` με το URL από το βήμα 3 (όχι το script).
 
 ## Παραγωγή (production)
 
