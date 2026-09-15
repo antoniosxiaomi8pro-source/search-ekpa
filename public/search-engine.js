@@ -24,9 +24,24 @@
 })(typeof self !== "undefined" ? self : this, function () {
   // Common function words that carry no topical meaning - excluded from scoring
   // terms so they don't dilute relevance in multi-word queries.
+  //
+  // IMPORTANT: entries here are matched against ALREADY-FOLDED query tokens (see
+  // queryVariants/foldGreek below), so they must be written in their POST-FOLD form
+  // (accents stripped, η/υ/ω folded) - e.g. "της" -> "τις", "είναι" -> "ιναι", "από"
+  // -> "απο". Several entries here were previously written in their original,
+  // unfolded spelling and as a result silently never matched anything (discovered
+  // 15/9/2026 while investigating why periphrastic queries like "θέλω κάτι για..."
+  // lost their focus - "της"/"του"/"των"/"στη"/"στην"/"είναι"/"από" were NOT being
+  // filtered at all despite being listed). If you add a new Greek stopword, run it
+  // through foldGreek(normalize(word)) first and add the RESULT, not the word itself.
   const STOPWORDS = new Set([
-    "και", "για", "της", "του", "των", "το", "τα", "τον", "την", "με", "από", "στο",
-    "στη", "στην", "στον", "στα", "είναι", "ένα", "μία", "μια", "ή", "αλλα", "αλλά",
+    "και", "για", "τις", "τοι", "τον", "το", "τα", "τιν", "με", "απο", "στο",
+    "στι", "στιν", "στον", "στα", "ιναι", "ενα", "μια", "αλλα",
+    // Noise verbs/pronouns from consultative-style queries ("θέλω κάτι για...",
+    // "ψάχνω κάποιο πρόγραμμα που να...") - these carry no topical signal either,
+    // but were drowning out the real keyword in longer, conversational queries.
+    "να", "κατι", "θελο", "ψαχνο", "ιθελα", "μπορο", "μποριτε", "προτινετε",
+    "καπιο", "καπια", "ιμαι",
     "that", "and", "the", "of", "in", "for", "to", "a", "an", "with", "on",
     // Every single item in this catalog IS a "πρόγραμμα" (course/program) — the word
     // carries no discriminating signal for relevance, it just adds noise that can
