@@ -71,17 +71,8 @@ input:focus,select:focus{border-color:var(--blue);box-shadow:0 0 0 4px rgba(11,7
 <main class="wrapper">
 <section class="panel">
 <div class="row">
-<input id="q" type="search" placeholder="Δοκίμασε: μάρκετινγκ, psixologia, οικονομικά, ai...">
+<input id="q" type="search" placeholder="">
 <select id="area"></select>
-</div>
-<div class="chips">
-<span class="chip star" data-q="αθληση">αθληση</span>
-<span class="chip" data-q="διαφήμιση">διαφήμιση</span>
-<span class="chip" data-q="τεχνητή νοημοσύνη">τεχνητή νοημοσύνη</span>
-<span class="chip" data-q="psixologia">psixologia</span>
-<span class="chip" data-q="economist">economist</span>
-<span class="chip" data-q="διοικηση">διοικηση</span>
-<span class="chip" data-q="ναυτιλια">ναυτιλια</span>
 </div>
 </section>
 <div class="stats">
@@ -386,7 +377,6 @@ document.getElementById("q").oninput=e=>{
   _searchDebounce=setTimeout(render,120);
 };
 document.getElementById("area").onchange=e=>{state.area=e.target.value;render();};
-document.querySelectorAll(".chip").forEach(b=>b.onclick=()=>{state.q=b.dataset.q;document.getElementById("q").value=state.q;render();});
 renderAreas();render();
 
 // ---- AI Βοηθός (retrieval μέσω της δικής μας score(), generation μέσω Claude API) ----
