@@ -133,7 +133,7 @@ const state = {q:"",area:""};
 // Common function words that carry no topical meaning - excluded from scoring terms
 // so they don't dilute relevance in multi-word queries (e.g. "μαρκετινγκ και πωλησεις"
 // shouldn't get extra points just because "και" appears in almost every program).
-const STOPWORDS=new Set(["και","για","της","του","των","το","τα","τον","την","με","από","στο","στη","στην","στον","στα","είναι","ένα","μία","μια","ή","αλλα","αλλά","that","and","the","of","in","for","to","a","an","with","on"]);
+const STOPWORDS=new Set(["και","για","της","του","των","το","τα","τον","την","με","από","στο","στη","στην","στον","στα","είναι","ένα","μία","μια","ή","αλλα","αλλά","that","and","the","of","in","for","to","a","an","with","on","προγραμμα","προγραμματα","program","programs"]);
 
 function normalize(v){return String(v||"").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^\p{L}\p{N}]+/gu," ").replace(/\s+/g," ").trim();}
 // Fold Greek letters that sound identical in Modern Greek (iotacism: η/υ/ει/οι/υι all

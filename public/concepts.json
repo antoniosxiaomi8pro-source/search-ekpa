@@ -301,11 +301,9 @@
     "bookkeeping"
   ],
   "public_sector_certified": [
-    "μοριοδοτουμενο",
     "δημοσιοι υπαλληλοι",
     "public sector",
     "civil servants",
-    "μοριοδοτηση",
     "ασεπ"
   ],
   "pedagogy_special_education_certified": [
@@ -529,5 +527,13 @@
     "therapy",
     "θεραπεια",
     "συμβουλευτικη ψυχολογια"
+  ],
+  "industrial_manufacturing": [
+    "βιομηχανικη",
+    "βιομηχανια",
+    "industrial",
+    "industry",
+    "industries",
+    "manufacturing"
   ]
 }

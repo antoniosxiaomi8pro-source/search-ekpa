@@ -17,6 +17,11 @@
     "και", "για", "της", "του", "των", "το", "τα", "τον", "την", "με", "από", "στο",
     "στη", "στην", "στον", "στα", "είναι", "ένα", "μία", "μια", "ή", "αλλα", "αλλά",
     "that", "and", "the", "of", "in", "for", "to", "a", "an", "with", "on",
+    // Every single item in this catalog IS a "πρόγραμμα" (course/program) — the word
+    // carries no discriminating signal for relevance, it just adds noise that can
+    // outweigh genuine matches (e.g. "προγράμματα για φιλολόγους" was scoring an
+    // unrelated "...Ψηφιακά Προγράμματα" title above the real philology courses).
+    "προγραμμα", "προγραμματα", "program", "programs",
   ]);
 
   // Generalized typo-tolerance: a vocabulary built from words that ACTUALLY occur in
