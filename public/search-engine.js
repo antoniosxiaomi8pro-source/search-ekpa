@@ -54,7 +54,26 @@
   // that false-positive class without weakening real typo tolerance.
   const MIN_SHARED_PREFIX = 3;
   function sharesPrefix(a, b, n) {
-    return a.slice(0, n) === b.slice(0, n);
+    if (!a || !b || a[0] !== b[0]) return false; // the opening letter must always match —
+    // this is what actually rules out unrelated roots like ψυχολογια/οινολογια or
+    // μαθισις/παθισις, regardless of what happens later in the word.
+    if (a.length === b.length) return a.slice(0, n) === b.slice(0, n);
+    // Different lengths: only bridge the gap for a DOUBLED letter specifically
+    // (e.g. "αγγλικα" vs "αγλικα" — forgetting to double a consonant is a very
+    // common Greek/Greeklish typo). A first attempt allowed any single inserted
+    // character here, but that reopened dozens of unrelated collisions across the
+    // real catalog (e.g. "στατιστικα"/"στρατιοτικα", "γεολογια"/"γεμολογια") —
+    // far more damage than the one case it was meant to fix.
+    const longer = a.length > b.length ? a : b;
+    const shorter = a.length > b.length ? b : a;
+    const shortPrefix = shorter.slice(0, n);
+    for (let i = 1; i < Math.min(longer.length, n + 1); i++) {
+      if (longer[i] === longer[i - 1]) {
+        const candidate = longer.slice(0, i) + longer.slice(i + 1);
+        if (candidate.slice(0, n) === shortPrefix) return true;
+      }
+    }
+    return false;
   }
 
   function fuzzyVocabMatches(token, vocab) {
@@ -122,6 +141,18 @@
   // A query is checked in both its normal form AND (if it looks like Latin-script Greek)
   // a transliterated-to-Greek form. Both variants get folded, so "psixologia" and
   // "ψυχολογία" converge to the same canonical string ("ψιχολογια").
+  // Greek "αυ"/"ευ" are pronounced (and often typed in Greeklish) as "af"/"av" or
+  // "ef"/"ev" depending on the following consonant's voicing (e.g. "ναυτιλιακά" is
+  // commonly typed "naftiliaka"). We can't reliably tell from Latin letters alone
+  // whether "f"/"v" was meant as itself (φ/β) or as part of a diphthong, so when
+  // this pattern appears we try the diphthong reading too, as an extra candidate.
+  function transliterateGreeklishAuEu(latinLower) {
+    const marked = latinLower
+      .replace(/av/g, "\u0001").replace(/af/g, "\u0001")
+      .replace(/ev/g, "\u0002").replace(/ef/g, "\u0002");
+    return transliterateGreeklish(marked).replace(/\u0001/g, "αυ").replace(/\u0002/g, "ευ");
+  }
+
   function queryVariants(q) {
     const variants = new Set();
     const base = foldGreek(normalize(q));
@@ -130,6 +161,10 @@
     if (isLikelyGreeklish(lower)) {
       const translit = foldGreek(normalize(transliterateGreeklish(lower)));
       if (translit) variants.add(translit);
+      if (/a[fv]|e[fv]/.test(lower)) {
+        const translit2 = foldGreek(normalize(transliterateGreeklishAuEu(lower)));
+        if (translit2) variants.add(translit2);
+      }
     }
     return Array.from(variants);
   }
