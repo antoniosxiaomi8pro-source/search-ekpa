@@ -455,13 +455,33 @@ function toCompactResult(p) {
   COMPACT_SEARCH_FIELDS.forEach((k) => { out[k] = p[k]; });
   return out;
 }
+// Server-Timing instrumentation: added to diagnose an IT-reported ~1.03s local TTFB that
+// our own benchmarks can't explain (warm-cache scoring is <1ms, cold index-build is ~200ms
+// worst case, JSON.stringify ~2ms, gzip ~11ms on a comparable payload — nowhere near 1s).
+// This surfaces the ACTUAL time our own code takes, per phase, as a standard response
+// header (visible directly in any browser's Network > Timing panel — no server log access
+// needed). If app_total stays small while real-world TTFB stays ~1s, that proves the time
+// is spent outside this handler (compression, container CPU limits, a proxy in front of it)
+// rather than in the search itself — telling IT where to actually look instead of guessing.
+function hrMs(a, b) {
+  return (Number(b - a) / 1e6).toFixed(2);
+}
 app.get("/api/search", searchLimiter, (req, res) => {
+  const t0 = process.hrtime.bigint();
   const q = String(req.query.q || "");
   const limit = clampSearchLimit(req.query.limit);
   const results = EkpaSearch.search(PROGRAMS, CONCEPTS, q, limit);
+  const t1 = process.hrtime.bigint();
   trackSearch(req.ip, q, results.length); // visibility only — does not affect ranking
   const payload = req.query.fields === "compact" ? results.map(toCompactResult) : results;
-  res.json(payload);
+  const t2 = process.hrtime.bigint();
+  const body = JSON.stringify(payload);
+  const t3 = process.hrtime.bigint();
+  res.set(
+    "Server-Timing",
+    `scoring;dur=${hrMs(t0, t1)}, shape;dur=${hrMs(t1, t2)}, serialize;dur=${hrMs(t2, t3)}, app_total;dur=${hrMs(t0, t3)}`
+  );
+  res.type("application/json").send(body);
 });
 
 // Called by the backend's own index.html (which searches client-side for speed, so it
