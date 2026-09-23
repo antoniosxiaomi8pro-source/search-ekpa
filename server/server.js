@@ -433,11 +433,35 @@ app.post("/api/chat", chatLimiter, async (req, res) => {
 });
 
 // Plain retrieval endpoint (used by the GTM widget on elearningekpa.gr).
+//
+// `limit`: how many results to return (default/max 40 — unchanged from before, so any
+// caller that doesn't know about this param gets exactly the old behaviour).
+// `fields=compact`: opt-in trimmed response shape carrying only what the GTM widget's
+// dropdown actually renders (id/slug/title/url/image_url/price), instead of the full
+// program record (description_full, search_text, tags, concepts, similar_program_ids...).
+// A typical 40-result/full-fields response is ~190KB; the same query at limit=6&fields=compact
+// is ~2KB — the widget only ever displays its first 6 results and none of the trimmed
+// fields, so nothing user-visible changes, only what travels over the wire.
+// Ranking itself (EkpaSearch.search) is completely untouched by either param.
+const MAX_SEARCH_LIMIT = 40;
+function clampSearchLimit(raw) {
+  const n = parseInt(raw, 10);
+  if (!Number.isFinite(n) || n <= 0) return MAX_SEARCH_LIMIT;
+  return Math.min(n, MAX_SEARCH_LIMIT);
+}
+const COMPACT_SEARCH_FIELDS = ["id", "slug", "title", "url", "image_url", "price"];
+function toCompactResult(p) {
+  const out = {};
+  COMPACT_SEARCH_FIELDS.forEach((k) => { out[k] = p[k]; });
+  return out;
+}
 app.get("/api/search", searchLimiter, (req, res) => {
   const q = String(req.query.q || "");
-  const results = EkpaSearch.search(PROGRAMS, CONCEPTS, q, 40);
+  const limit = clampSearchLimit(req.query.limit);
+  const results = EkpaSearch.search(PROGRAMS, CONCEPTS, q, limit);
   trackSearch(req.ip, q, results.length); // visibility only — does not affect ranking
-  res.json(results);
+  const payload = req.query.fields === "compact" ? results.map(toCompactResult) : results;
+  res.json(payload);
 });
 
 // Called by the backend's own index.html (which searches client-side for speed, so it
