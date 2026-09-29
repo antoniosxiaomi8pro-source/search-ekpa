@@ -4,24 +4,24 @@
     "egklimatologiki-psuxologia",
     "koinwnikh-klinikh-psuxologia-twn-eksarthsewn",
     "organwsiakh-psuxologia-kai-sumperifora",
+    "efarmoges-ths-sumbouleutikhs-psuxologias-sthn-ekpaideush-ta-paidia-kai-tous-efhbous",
     "dikastikh-psuxiatrodikastikh-psuxologia",
     "thetikh-psuxologia-h-episthmh-ths-eutuxias",
     "paidopsuxologia-psuxologia-brefous-kai-paidiou-prosxolikhs-hlikias",
     "kliniki-psuxologia-paidiou-kai-efibou",
-    "oikonomiki-psuxologia-apofaseis-kai-thesmoi",
-    "ekpaideutiki-psuxologia"
+    "paidopsuxologia-psuxologia-paidiou-sxolikis-hlikias"
   ],
   "psixologia": [
     "iatrikh-psuxologia",
     "egklimatologiki-psuxologia",
     "koinwnikh-klinikh-psuxologia-twn-eksarthsewn",
     "organwsiakh-psuxologia-kai-sumperifora",
+    "efarmoges-ths-sumbouleutikhs-psuxologias-sthn-ekpaideush-ta-paidia-kai-tous-efhbous",
     "dikastikh-psuxiatrodikastikh-psuxologia",
     "thetikh-psuxologia-h-episthmh-ths-eutuxias",
     "paidopsuxologia-psuxologia-brefous-kai-paidiou-prosxolikhs-hlikias",
     "kliniki-psuxologia-paidiou-kai-efibou",
-    "oikonomiki-psuxologia-apofaseis-kai-thesmoi",
-    "ekpaideutiki-psuxologia"
+    "paidopsuxologia-psuxologia-paidiou-sxolikis-hlikias"
   ],
   "digital marketing": [
     "digital-marketing",
@@ -37,27 +37,27 @@
   ],
   "διαφιμιση": [
     "chatgpt-kai-xrisi-tou-gia-epituximeni-diafimisi-kai-digital-marketing",
-    "seo-sem",
     "antartiko-marketing-kai-enallaktiki-diafimisi",
+    "seo-sem",
     "fwtografia-kai-diafhmish",
     "digital-marketing",
     "b2b-marketing-sales",
     "marketing-kai-texnikes-pwlhsewn",
     "marketing-and-communication-management",
     "tourism-management-and-marketing",
-    "marketing-proiontwn-kai-yphresiwn-omorfias"
+    "marketing-agrotikwn-proiontwn"
   ],
   "διαφήμιση": [
     "chatgpt-kai-xrisi-tou-gia-epituximeni-diafimisi-kai-digital-marketing",
-    "seo-sem",
     "antartiko-marketing-kai-enallaktiki-diafimisi",
+    "seo-sem",
     "fwtografia-kai-diafhmish",
     "digital-marketing",
     "b2b-marketing-sales",
     "marketing-kai-texnikes-pwlhsewn",
     "marketing-and-communication-management",
     "tourism-management-and-marketing",
-    "marketing-proiontwn-kai-yphresiwn-omorfias"
+    "marketing-agrotikwn-proiontwn"
   ],
   "αθληση": [
     "athlisi-kai-somatiki-askisi-se-atoma-tritis-hlikias",
@@ -69,12 +69,12 @@
     "xhmeia-trofimwn-kai-h-texnologia-ths-diatrofhs",
     "klinikh-diatrofh",
     "diatrofh-mesogeiakh-diaita-kai-antimetwpish-kardiaggeiakwn-noshmatwn",
-    "diatrofi-kai-mi-neoplasmatikes-pathiseis-tou-gastrenterikou-sustimatos-mikrobioma"
+    "o-rolos-tis-diatrofis-stin-antimetopisi-hikon-astheneion"
   ],
   "economist": [
     "h-elliniki-koinonia-ston-21o-aiona-koinonikes-staseis-kai-oikonomiki-politiki",
-    "law-and-economics",
     "oikonomiki-megethunsi-kai-oikonomiki-politiki-mia-diepistimoniki-proseggisi",
+    "law-and-economics",
     "oikonomika-tis-anaptuksis-kai-tis-megethunsis-plaisio-efarmogis-kai-apofaseon",
     "anthropino-kefalaio-kai-apasxolisi-stin-elliniki-oikonomia",
     "epixeirimatikotita-kai-kainotomia-stratigikes-anaptuksis-kai-dioikisis-epixeiriseon",
@@ -127,16 +127,16 @@
     "marketing-kai-texnikes-pwlhsewn",
     "marketing-and-communication-management",
     "tourism-management-and-marketing",
+    "marketing-agrotikwn-proiontwn",
     "marketing-proiontwn-kai-yphresiwn-omorfias",
-    "marketing-politistikou-tourismou",
-    "content-marketing-native-advertising"
+    "international-marketing"
   ],
   "τεχνητή νοημοσύνη": [
     "paragogiki-texniti-noimosuni-kai-nomiki-praktiki",
+    "dimiourgiki-hgesia-kai-texniti-noimosuni",
     "marketingk-ypiresion-4-0-stratigikes-texniti-noimosuni-ah-kai-automatopoiisi",
     "microsoft-excel-kai-texniti-noimosuni-gia-epaggelmaties",
     "texniti-noimosuni-stin-epistimi-tis-diatrofis",
-    "dimiourgiki-hgesia-kai-texniti-noimosuni",
     "ai-developers-anaptuksi-efarmogon-texnitis-noimosunis-me-python-kai-openai-api",
     "sustimata-texnitis-noimosunis-stin-kubernoasfaleia",
     "artificial-intelligence-in-healthcare",
@@ -241,9 +241,9 @@
     "efarmoges-texnitis-noimosunis-stin-eidiki-agogi",
     "eidiki-agogi-kai-ekpaideusi-diagnostiki-therapeutiki-sumbouleutiki",
     "eidiki-agogi-entaksiaki-ekpaideusi-kai-parallili-stiriksi",
-    "eidiki-agogi-duskolies-mathisis-ekpaideutiki-aksiologisi-kai-parembasi",
     "eidiki-agogi-kai-parembasi-h-texniki-ton-koinonikon-hstorion",
     "eidiki-agogi-kai-xarismatikotita-aristeia-hthiki-kai-sofia",
+    "eidiki-agogi-duskolies-mathisis-ekpaideutiki-aksiologisi-kai-parembasi",
     "eidiki-diapaidagogisi-parembasi-stis-mathisiakes-duskolies-stin-anagnosi-tin-orthografia-kai-ton-grapto-logo",
     "mathhsiakes-duskolies-aksiologhsh-kai-strathgikes-parembashs"
   ],
@@ -254,17 +254,19 @@
     "nautiliako-dikaio-stin-praksi",
     "dikaio-prostasias-politistikis-klironomias",
     "dikaio-energeias-kai-periballontos-nomikes-prokliseis-kai-prooptikes-biosimotitas",
-    "to-dikaio-tis-astikis-kai-poinikis-euthunis-stin-ygeia",
     "farmakeutiko-dikaio-kai-praktikes-efarmoges",
+    "to-dikaio-tis-astikis-kai-poinikis-euthunis-stin-ygeia",
     "nomika-agglika",
     "paralegal-ekseidikeumeno-prosopiko-sto-xoro-paroxis-nomikon-ypiresion"
   ],
   "οινολογία": [
     "ampelourgia-kai-oinologia-paragwgh-diathesh-kai-katanalwsh-tou-oinou",
     "apostagmata-kai-alkoolouxa-pota",
+    "gastronomia-kai-oinos",
     "oino-gnwsia-kai-oinogeusia",
     "oinotourismos",
-    "gastronomia-kai-oinos",
+    "analush-kai-poiotikos-elegxos-oinwn-apo-ton-trygo-ws-thn-oloklhrwsh-twn-zymwsewn",
+    "oiniko-marketing",
     "dioikisi-ypiresion-ygeias-sto-tmima-epeigonton-peristatikon"
   ],
   "αμπελουργία": [
@@ -272,19 +274,21 @@
     "gastronomia-kai-oinos",
     "apostagmata-kai-alkoolouxa-pota",
     "oino-gnwsia-kai-oinogeusia",
-    "oinotourismos"
+    "oinotourismos",
+    "analush-kai-poiotikos-elegxos-oinwn-apo-ton-trygo-ws-thn-oloklhrwsh-twn-zymwsewn",
+    "oiniko-marketing"
   ],
   "market": [
     "marketing-kai-texnikes-pwlhsewn",
     "marketing-and-communication-management",
     "tourism-management-and-marketing",
+    "marketing-agrotikwn-proiontwn",
     "marketing-proiontwn-kai-yphresiwn-omorfias",
     "digital-marketing",
+    "international-marketing",
     "marketing-politistikou-tourismou",
     "content-marketing-native-advertising",
-    "event-planning-marketing-management",
-    "hospitality-marketing",
-    "farmakeutiko-marketingk"
+    "event-planning-marketing-management"
   ],
   "cyber security": [
     "ht-cyber-security-diaxeirisi-apeilon-kai-politikes-asfaleias",
@@ -293,10 +297,10 @@
     "diethnhs-kwdikas-gia-thn-asfaleia-twn-ploiwn-kai-twn-limenikwn-egkatastasewn-international-ship-and-port-facility-security-code-isps",
     "amuntikos-astunomikos-analutis-hlektroniki-dimosiografia-amunas-kai-asfaleias",
     "asfaleia-aerolimenon-kai-politikis-aeroporias-diaxeirisi-kindunon-apeilon-kai-kriseon",
-    "asfaleia-cbrne-hazmat-ploion-kai-limenikon-egkatastaseon",
-    "texnikos-sustimaton-asfaleias",
-    "geopolitiki-nautiki-hsxus-kai-nautiliaki-asfaleia",
-    "aeroporiki-dioikisi-asfaleia-kai-diaxeirisi-kindunon"
+    "prosopiko-hdiotikis-asfaleias-basiko-programma-katartisis",
+    "sustimata-asfaleia-kai-pistopoiiseis-hlektronikon-pliromon",
+    "asfaleia-athlitikon-gegonoton-kai-egkatastaseon",
+    "asfaleia-cbrne-hazmat-ploion-kai-limenikon-egkatastaseon"
   ],
   "blockchain": [
     "blockchain-and-energy",
@@ -401,25 +405,25 @@
   "it": [
     "ht-cyber-security-diaxeirisi-apeilon-kai-politikes-asfaleias",
     "nautilia-kai-plhroforikh",
+    "dioikisi-ergon-texnologias-pliroforikis-kai-epikoinonion-ekmathisi-ergaleion",
+    "protupa-dioikisis-texnologias-pliroforikis-kai-epikoinonion",
     "governance-risk-compliance-grc-leadership-in-cybersecurity",
     "eidikos-ypostiriksis-pliroforikis",
     "biopliroforiki-analusi-kai-praktikes-efarmoges",
     "programmatismos-me-th-glwssa-java",
     "grafistikos-sxediasmos-kai-epeksergasia-statikhs-eikonas-adobe-illustrator-adobe-photoshop",
-    "montaz-epeksergasia-kinoumenhs-eikonas-mesa-apo-pshfiaka-programmata-adobe-premiere",
-    "pshfiakos-sxediasmos-me-autocad",
-    "web-developer"
+    "montaz-epeksergasia-kinoumenhs-eikonas-mesa-apo-pshfiaka-programmata-adobe-premiere"
   ],
   "bi": [
     "big-data-in-excel-power-bi",
     "big-data-developer-me-hadoop-apache-spark-mongodb-python",
     "data-analyst-analusi-dedomenon-mixaniki-mathisi-kai-neuronika-diktua-me-praktikes-efarmoges-se-python-kai-r",
+    "data-analytics-me-tin-xrisi-r-kai-knime",
+    "eisagogi-sti-glossa-r-kai-sto-rstudio-me-efarmoges-stin-analusi-dedomenon",
     "data-science-with-python",
     "diaxeirisi-kriseon-me-aksiopoiisi-epixeirisiakis-analusis-kai-texnitis-noimosunis-ah",
     "microsoft-excel-kai-texniti-noimosuni-gia-epaggelmaties",
-    "data-analytics-me-tin-xrisi-r-kai-knime",
     "ypothalassia-xartografisi-methodologia-kai-geokindunoi",
-    "eisagogi-sti-glossa-r-kai-sto-rstudio-me-efarmoges-stin-analusi-dedomenon",
     "data-analyst"
   ],
   "seo": [
@@ -430,45 +434,45 @@
     "marketing-kai-texnikes-pwlhsewn",
     "marketing-and-communication-management",
     "tourism-management-and-marketing",
+    "marketing-agrotikwn-proiontwn",
     "marketing-proiontwn-kai-yphresiwn-omorfias",
-    "marketing-politistikou-tourismou",
-    "content-marketing-native-advertising"
+    "international-marketing"
   ],
   "ψυ": [
     "iatrikh-psuxologia",
     "psuxopathologia-tou-brefous-tou-paidiou-kai-tou-efhbou",
     "psuxotherapeia-thewria-kai-praksh",
+    "koinwnika-problhmata-kai-psuxikh-ygeia-tou-paidiou",
     "egklimatologiki-psuxologia",
     "diaxeirish-sunaisthhmatikou-psuxikou-traumatos",
     "koinwnikh-klinikh-psuxologia-twn-eksarthsewn",
     "organwsiakh-psuxologia-kai-sumperifora",
     "psuxikes-diataraxes-sthn-efhbeia-diagnwsh-kai-therapeutikh-antimetwpish",
-    "agxos-kai-katathlipsh-psuxoekpaideush-kai-diaxeirish",
-    "dikastikh-psuxiatrodikastikh-psuxologia"
+    "efarmoges-ths-sumbouleutikhs-psuxologias-sthn-ekpaideush-ta-paidia-kai-tous-efhbous"
   ],
   "ma": [
     "marketing-kai-texnikes-pwlhsewn",
     "marketing-and-communication-management",
     "tourism-management-and-marketing",
+    "marketing-agrotikwn-proiontwn",
     "marketing-proiontwn-kai-yphresiwn-omorfias",
     "digital-marketing",
+    "international-marketing",
     "marketing-politistikou-tourismou",
     "content-marketing-native-advertising",
-    "event-planning-marketing-management",
-    "hospitality-marketing",
-    "b2b-marketing-sales"
+    "event-planning-marketing-management"
   ],
   "υπολογιστές": [
     "efarmosmeni-kbantiki-texnologia",
     "nautilia-kai-plhroforikh",
     "ht-cyber-security-diaxeirisi-apeilon-kai-politikes-asfaleias",
+    "dioikisi-ergon-texnologias-pliroforikis-kai-epikoinonion-ekmathisi-ergaleion",
+    "protupa-dioikisis-texnologias-pliroforikis-kai-epikoinonion",
     "governance-risk-compliance-grc-leadership-in-cybersecurity",
     "eidikos-ypostiriksis-pliroforikis",
     "biopliroforiki-analusi-kai-praktikes-efarmoges",
     "programmatismos-me-th-glwssa-java",
-    "grafistikos-sxediasmos-kai-epeksergasia-statikhs-eikonas-adobe-illustrator-adobe-photoshop",
-    "montaz-epeksergasia-kinoumenhs-eikonas-mesa-apo-pshfiaka-programmata-adobe-premiere",
-    "pshfiakos-sxediasmos-me-autocad"
+    "grafistikos-sxediasmos-kai-epeksergasia-statikhs-eikonas-adobe-illustrator-adobe-photoshop"
   ],
   "ιστοσελίδα": [
     "ultimate-web-development-for-experts-with-react-16-angular-7-vue-js-2-html-javascript-jquery-kai-bootstrap-4",
@@ -496,15 +500,15 @@
   ],
   "ψυχολόγος": [
     "iatrikh-psuxologia",
+    "koinwnika-problhmata-kai-psuxikh-ygeia-tou-paidiou",
     "egklimatologiki-psuxologia",
     "koinwnikh-klinikh-psuxologia-twn-eksarthsewn",
     "organwsiakh-psuxologia-kai-sumperifora",
+    "efarmoges-ths-sumbouleutikhs-psuxologias-sthn-ekpaideush-ta-paidia-kai-tous-efhbous",
     "dikastikh-psuxiatrodikastikh-psuxologia",
     "paidopsuxiatrikh",
     "thetikh-psuxologia-h-episthmh-ths-eutuxias",
-    "paidopsuxologia-psuxologia-brefous-kai-paidiou-prosxolikhs-hlikias",
-    "kliniki-psuxologia-paidiou-kai-efibou",
-    "psuxiki-ygeia-traumatika-gegonota-diaxeirisi-apoleias-penthous"
+    "paidopsuxologia-psuxologia-brefous-kai-paidiou-prosxolikhs-hlikias"
   ],
   "τράπεζα": [
     "banking-and-international-finance-diethnh-xrhmatooikonomika",
@@ -532,15 +536,15 @@
   ],
   "θέλω κάτι να σπουδάσω ψυχολογία": [
     "iatrikh-psuxologia",
+    "koinwnika-problhmata-kai-psuxikh-ygeia-tou-paidiou",
     "egklimatologiki-psuxologia",
     "koinwnikh-klinikh-psuxologia-twn-eksarthsewn",
     "organwsiakh-psuxologia-kai-sumperifora",
+    "efarmoges-ths-sumbouleutikhs-psuxologias-sthn-ekpaideush-ta-paidia-kai-tous-efhbous",
     "dikastikh-psuxiatrodikastikh-psuxologia",
     "paidopsuxiatrikh",
     "thetikh-psuxologia-h-episthmh-ths-eutuxias",
-    "paidopsuxologia-psuxologia-brefous-kai-paidiou-prosxolikhs-hlikias",
-    "kliniki-psuxologia-paidiou-kai-efibou",
-    "psuxiki-ygeia-traumatika-gegonota-diaxeirisi-apoleias-penthous"
+    "paidopsuxologia-psuxologia-brefous-kai-paidiou-prosxolikhs-hlikias"
   ],
   "naftiliaka": [
     "thalassies-metafores-nautiliaki-epixeirimatikotita-ploigisi-sti-biosimi-anaptuksi",
@@ -562,8 +566,8 @@
     "epaggelmatika-germanika",
     "professional-english-for-effective-communication",
     "business-english",
-    "shipping-english",
-    "english-for-tourism-professionals",
-    "eisagwgh-sth-nanoiatrikh"
+    "english-for-media-and-journalism-studies",
+    "aggliki-stratiotikh-orologia-stis-diethneis-sunergasies-kai-eirhneftikes-apostoles",
+    "shipping-english"
   ]
 }
