@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<!-- internal build: v4.3 (shared search-engine.js, 702 programs from live /search-ds endpoint, scraped descriptions, fixed matching, 60 concepts, related programs, image fallback, typo-tolerance, greeklish, stopwords) -->
+<!-- internal build: v4.4 (v4.3 + ?q= deep-link: prefills the search box and runs the query on load, so external search bars can land here with a working query instead of an empty page) -->
 <title>EKPA Smart Finder</title>
 <style>
 :root{--blue:#0b4f8a;--dark:#073965;--bg:#f5f7fa;--border:#dfe5ec;--text:#17212b;--muted:#667085;--green:#087443;--amber:#a15c00}
@@ -228,6 +228,21 @@ document.getElementById("q").oninput=e=>{
 };
 document.getElementById("area").onchange=e=>{state.area=e.target.value;render();};
 renderAreas();render();
+
+// Deep-link support: /?q=... prefills the box and runs the search on load,
+// so an external search bar (Enter/icon on elearningekpa.gr, via the GTM
+// widget) can send a user straight here with real, already-expanded
+// SmartFinder results, instead of round-tripping through the site's own
+// /search page and its literal word-for-word matching.
+(function(){
+  const params=new URLSearchParams(location.search);
+  const qParam=params.get("q");
+  if(qParam && qParam.trim()){
+    document.getElementById("q").value=qParam;
+    state.q=qParam;
+    render();
+  }
+})();
 
 // ---- AI Βοηθός: retrieval + LLM call happen ONLY in the backend (/api/chat) ----
 const chatHistory=[];
