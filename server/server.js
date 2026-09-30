@@ -13,6 +13,7 @@ const crypto = require("crypto");
 const fs = require("fs");
 const path = require("path");
 const EkpaSearch = require("../public/search-engine.js");
+const SearchApiContract = require("./search-api-contract.js");
 
 const PUBLIC_DIR = path.join(__dirname, "../public");
 const PROGRAMS = JSON.parse(fs.readFileSync(path.join(PUBLIC_DIR, "programs.json"), "utf-8"));
@@ -434,46 +435,39 @@ app.post("/api/chat", chatLimiter, async (req, res) => {
 
 // Plain retrieval endpoint (used by the GTM widget on elearningekpa.gr).
 //
-// `limit`: how many results to return (default/max 40 — unchanged from before, so any
-// caller that doesn't know about this param gets exactly the old behaviour).
-// `fields=compact`: opt-in trimmed response shape carrying only what the GTM widget's
-// dropdown actually renders (id/slug/title/url/image_url/price), instead of the full
-// program record (description_full, search_text, tags, concepts, similar_program_ids...).
-// A typical 40-result/full-fields response is ~190KB; the same query at limit=6&fields=compact
-// is ~2KB — the widget only ever displays its first 6 results and none of the trimmed
-// fields, so nothing user-visible changes, only what travels over the wire.
-// Ranking itself (EkpaSearch.search) is completely untouched by either param.
-const MAX_SEARCH_LIMIT = 40;
-function clampSearchLimit(raw) {
-  const n = parseInt(raw, 10);
-  if (!Number.isFinite(n) || n <= 0) return MAX_SEARCH_LIMIT;
-  return Math.min(n, MAX_SEARCH_LIMIT);
-}
-const COMPACT_SEARCH_FIELDS = ["id", "slug", "title", "url", "image_url", "price"];
-function toCompactResult(p) {
-  const out = {};
-  COMPACT_SEARCH_FIELDS.forEach((k) => { out[k] = p[k]; });
-  return out;
-}
-// Server-Timing instrumentation: added to diagnose an IT-reported ~1.03s local TTFB that
-// our own benchmarks can't explain (warm-cache scoring is <1ms, cold index-build is ~200ms
-// worst case, JSON.stringify ~2ms, gzip ~11ms on a comparable payload — nowhere near 1s).
-// This surfaces the ACTUAL time our own code takes, per phase, as a standard response
-// header (visible directly in any browser's Network > Timing panel — no server log access
-// needed). If app_total stays small while real-world TTFB stays ~1s, that proves the time
-// is spent outside this handler (compression, container CPU limits, a proxy in front of it)
-// rather than in the search itself — telling IT where to actually look instead of guessing.
+// Backwards compatibility:
+//   GET /api/search?q=...&limit=N keeps the historical ARRAY response and max 40.
+//
+// Complete-results contract (opt-in):
+//   GET /api/search?q=...&format=paged&page=1&page_size=40
+// returns { results, pagination }. The engine ranks the COMPLETE matching set first,
+// then the API slices that stable ranking into pages. This means official categories
+// with 52/81/84 members can be traversed completely without one oversized response.
+// `fields=compact` works in both modes. Page size is deliberately capped at 40 to
+// preserve the existing payload/rate profile; completeness comes from pagination, not
+// from increasing the single-response ceiling.
 function hrMs(a, b) {
   return (Number(b - a) / 1e6).toFixed(2);
 }
 app.get("/api/search", searchLimiter, (req, res) => {
   const t0 = process.hrtime.bigint();
   const q = String(req.query.q || "");
-  const limit = clampSearchLimit(req.query.limit);
-  const results = EkpaSearch.search(PROGRAMS, CONCEPTS, q, limit);
+  const paged = req.query.format === "paged";
+
+  let payload;
+  let trackedCount;
+  if (paged) {
+    const allResults = EkpaSearch.rank(PROGRAMS, CONCEPTS, q);
+    trackedCount = allResults.length;
+    payload = SearchApiContract.buildPagedResponse(allResults, req.query);
+  } else {
+    const limit = SearchApiContract.clampLegacyLimit(req.query.limit);
+    const results = EkpaSearch.search(PROGRAMS, CONCEPTS, q, limit);
+    trackedCount = results.length;
+    payload = SearchApiContract.shapeResults(results, req.query.fields);
+  }
   const t1 = process.hrtime.bigint();
-  trackSearch(req.ip, q, results.length); // visibility only — does not affect ranking
-  const payload = req.query.fields === "compact" ? results.map(toCompactResult) : results;
+  trackSearch(req.ip, q, trackedCount);
   const t2 = process.hrtime.bigint();
   const body = JSON.stringify(payload);
   const t3 = process.hrtime.bigint();

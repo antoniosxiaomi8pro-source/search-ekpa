@@ -65,11 +65,19 @@
   // queries) so spelling variants and transliterated greeklish converge to the same
   // form. Never touches Latin letters, so English text/titles are unaffected.
   function foldGreek(s) {
-    return s.replace(/ει|οι|υι/g, "ι").replace(/η/g, "ι").replace(/υ/g, "ι").replace(/ω/g, "ο");
+    // Join the official ADHD acronym when punctuation normalization splits
+    // "ΔΕΠ-Υ" into two tokens ("δεπ υ"), so ΔΕΠΥ / ΔΕΠ-Υ / δεπ υ share one
+    // canonical representation before iotacism folds υ -> ι.
+    return s
+      .replace(/δεπ\s+υ/g, "δεπυ")
+      .replace(/ει|οι|υι/g, "ι")
+      .replace(/η/g, "ι")
+      .replace(/υ/g, "ι")
+      .replace(/ω/g, "ο");
   }
 
   const GREEKLISH_DIGRAPHS = [
-    ["th", "θ"], ["ps", "ψ"], ["ks", "ξ"], ["ch", "χ"], ["ou", "ου"], ["ai", "αι"],
+    ["th", "θ"], ["ps", "ψ"], ["ks", "ξ"], ["ch", "χ"], ["ou", "ου"], ["au", "αυ"], ["eu", "ευ"], ["ai", "αι"],
     ["ei", "ει"], ["oi", "οι"], ["mp", "μπ"], ["nt", "ντ"], ["gk", "γκ"], ["gg", "γγ"],
     ["ts", "τσ"], ["tz", "τζ"],
   ];
@@ -92,7 +100,11 @@
       out += ch;
       i += 1;
     }
-    return out;
+    // Native Greek uses final sigma (ς) at word endings. The single-letter
+    // table necessarily emits σ for Latin "s"; convert only word-final σ here
+    // so Greeklish "tourismos" converges with native "τουρισμός" without
+    // changing canonical Greek catalog/index text globally.
+    return out.replace(/σ(?=$|[^\p{L}\p{N}])/gu, "ς");
   }
 
   function isLikelyGreeklish(text) {
@@ -125,6 +137,15 @@
     const variants = new Set();
     const base = foldGreek(normalize(q));
     if (base) variants.add(base);
+
+    // Controlled acronym equivalence at the query-normalization layer. This is
+    // not a score boost: it simply gives English ADHD and Greek ΔΕΠΥ the same
+    // raw-query representations, allowing the existing title/category/concept
+    // scoring rules to rank an exact ΔΕΠ-Υ title naturally.
+    const depy = foldGreek(normalize("ΔΕΠΥ"));
+    if (base.split(" ").includes("adhd")) variants.add(base.split(" ").map((w) => w === "adhd" ? depy : w).join(" "));
+    if (base.split(" ").includes(depy)) variants.add(base.split(" ").map((w) => w === depy ? "adhd" : w).join(" "));
+
     const lower = String(q || "").toLowerCase();
     if (isLikelyGreeklish(lower) && base.replace(/\s+/g, "").length >= MIN_GREEKLISH_LETTERS) {
       const translit = foldGreek(normalize(transliterateGreeklish(lower)));
@@ -437,6 +458,355 @@
     return scoreEntry(buildEntry(p), queryVariants(q), terms, byWord);
   }
 
+  // ==========================================================================
+  // Checkpoint A: official category intent.
+  //
+  // Goal: when a query is CLEARLY asking for an official EKPA category/direction
+  // ("marketing", "\u03c0\u03c1\u03bf\u03b3\u03c1\u03ac\u03bc\u03bc\u03b1\u03c4\u03b1 \u03bd\u03b1\u03c5\u03c4\u03b9\u03bb\u03af\u03b1\u03c2", "\u03b8\u03ad\u03b1\u03c4\u03c1\u03bf"), return every program that
+  // officially belongs there (program.primary_area / program.areas_of_study),
+  // not merely whichever programs happen to already score > 0 for that query
+  // via title/tags/description substring hits. Deliberately conservative: it
+  // only ever narrows to category-only results when EVERY meaningful word in
+  // the query is accounted for by exactly one resolved category - a leftover
+  // word the category can't explain ("marketing ksenodoxeion", "AI gia
+  // giatrous") falls straight back to the normal scoring engine below,
+  // unchanged. Category membership itself is decided ONLY from primary_area/
+  // areas_of_study, per spec - never from description/tags/concepts.
+  // ==========================================================================
+
+  // A handful of common query words that don't literally appear inside the
+  // official category string they mean, so no amount of folding/prefix-matching
+  // resolves them generically. Each entry was verified against the REAL
+  // programs.json to resolve to exactly one official category before being
+  // added here (see the Checkpoint A report for how each was checked; reject
+  // anything that turns out ambiguous or unsupported instead of guessing).
+  // Keys are ALREADY folded (foldGreek(normalize(word))) - see the comment on
+  // STOPWORDS above for why: matching happens against folded query tokens.
+  const CATEGORY_ALIASES = {
+    "\u03bc\u03b1\u03c1\u03ba\u03b5\u03c4\u03b9\u03bd\u03b3\u03ba": "Marketing \u03ba\u03b1\u03b9 \u03a0\u03c9\u03bb\u03ae\u03c3\u03b5\u03b9\u03c2", // greeklish/Greek transliteration of the English category word
+    "\u03c4\u03bf\u03b9\u03c1\u03b9\u03c3\u03bc\u03bf\u03c2": "\u03a4\u03bf\u03c5\u03c1\u03b9\u03c3\u03c4\u03b9\u03ba\u03ac", // "\u03c4\u03bf\u03c5\u03c1\u03b9\u03c3\u03bc\u03cc\u03c2" (noun) vs official "\u03a4\u03bf\u03c5\u03c1\u03b9\u03c3\u03c4\u03b9\u03ba\u03ac" (adjective) - different suffix, same root
+    "\u03bc\u03bf\u03c1\u03b9\u03bf\u03b4\u03bf\u03c4\u03b9\u03c3\u03b9\u03c2": "\u039c\u03bf\u03c1\u03b9\u03bf\u03b4\u03bf\u03c4\u03bf\u03cd\u03bc\u03b5\u03bd\u03b1 \u03a0\u03c1\u03bf\u03b3\u03c1\u03ac\u03bc\u03bc\u03b1\u03c4\u03b1 \u03a0\u03b1\u03b9\u03b4\u03b1\u03b3\u03c9\u03b3\u03b9\u03ba\u03ce\u03bd & \u0395\u03b9\u03b4\u03b9\u03ba\u03ae\u03c2 \u0391\u03b3\u03c9\u03b3\u03ae\u03c2", // "\u03bc\u03bf\u03c1\u03b9\u03bf\u03b4\u03cc\u03c4\u03b7\u03c3\u03b7\u03c2"
+    "\u03bc\u03bf\u03c1\u03b9\u03bf\u03b4\u03bf\u03c4\u03b9\u03c3\u03b9": "\u039c\u03bf\u03c1\u03b9\u03bf\u03b4\u03bf\u03c4\u03bf\u03cd\u03bc\u03b5\u03bd\u03b1 \u03a0\u03c1\u03bf\u03b3\u03c1\u03ac\u03bc\u03bc\u03b1\u03c4\u03b1 \u03a0\u03b1\u03b9\u03b4\u03b1\u03b3\u03c9\u03b3\u03b9\u03ba\u03ce\u03bd & \u0395\u03b9\u03b4\u03b9\u03ba\u03ae\u03c2 \u0391\u03b3\u03c9\u03b3\u03ae\u03c2", // "\u03bc\u03bf\u03c1\u03b9\u03bf\u03b4\u03cc\u03c4\u03b7\u03c3\u03b7"
+      "\u03bd\u03b1\u03b9\u03c4\u03b9\u03ba\u03bf\u03c2": "\u039d\u03b1\u03c5\u03c4\u03b9\u03bb\u03b9\u03b1\u03ba\u03ac", // verified: \u03bd\u03b1\u03c5\u03c4\u03b9\u03ba\u03cc\u03c2 -> official Nautiliaka category (maritime industry, Checkpoint B audit)
+    "\u03bd\u03b1\u03b9\u03c4\u03b9\u03ba\u03b9": "\u039d\u03b1\u03c5\u03c4\u03b9\u03bb\u03b9\u03b1\u03ba\u03ac", // verified: \u03bd\u03b1\u03c5\u03c4\u03b9\u03ba\u03bf\u03af -> official Nautiliaka category (maritime industry, Checkpoint B audit)
+    "\u03bd\u03b1\u03b9\u03c4\u03b9\u03ba\u03bf\u03b9\u03c2": "\u039d\u03b1\u03c5\u03c4\u03b9\u03bb\u03b9\u03b1\u03ba\u03ac", // verified: \u03bd\u03b1\u03c5\u03c4\u03b9\u03ba\u03bf\u03cd\u03c2 -> official Nautiliaka category (maritime industry, Checkpoint B audit)
+    "\u03bd\u03b1\u03b9\u03c4\u03b9\u03ba\u03bf\u03b9": "\u039d\u03b1\u03c5\u03c4\u03b9\u03bb\u03b9\u03b1\u03ba\u03ac", // verified: \u03bd\u03b1\u03c5\u03c4\u03b9\u03ba\u03bf\u03cd -> official Nautiliaka category (maritime industry, Checkpoint B audit)
+    "\u03bd\u03b1\u03b9\u03c4\u03b9\u03ba\u03bf\u03bd": "\u039d\u03b1\u03c5\u03c4\u03b9\u03bb\u03b9\u03b1\u03ba\u03ac", // verified: \u03bd\u03b1\u03c5\u03c4\u03b9\u03ba\u03ce\u03bd -> official Nautiliaka category (maritime industry, Checkpoint B audit)
+    "\u03b9\u03b8\u03bf\u03c0\u03b9\u03bf\u03c2": "\u039a\u03b9\u03bd\u03b7\u03bc\u03b1\u03c4\u03bf\u03b3\u03c1\u03ac\u03c6\u03bf\u03c2\u0020\u002d\u0020\u0398\u03ad\u03b1\u03c4\u03c1\u03bf", // verified: \u03b7\u03b8\u03bf\u03c0\u03bf\u03b9\u03cc\u03c2 -> official Kinimatografos-Theatro category (Checkpoint B audit)
+    "\u03b9\u03b8\u03bf\u03c0\u03b9\u03b9": "\u039a\u03b9\u03bd\u03b7\u03bc\u03b1\u03c4\u03bf\u03b3\u03c1\u03ac\u03c6\u03bf\u03c2\u0020\u002d\u0020\u0398\u03ad\u03b1\u03c4\u03c1\u03bf", // verified: \u03b7\u03b8\u03bf\u03c0\u03bf\u03b9\u03bf\u03af -> official Kinimatografos-Theatro category (Checkpoint B audit)
+    "\u03b9\u03b8\u03bf\u03c0\u03b9\u03bf\u03b9\u03c2": "\u039a\u03b9\u03bd\u03b7\u03bc\u03b1\u03c4\u03bf\u03b3\u03c1\u03ac\u03c6\u03bf\u03c2\u0020\u002d\u0020\u0398\u03ad\u03b1\u03c4\u03c1\u03bf", // verified: \u03b7\u03b8\u03bf\u03c0\u03bf\u03b9\u03bf\u03cd\u03c2 -> official Kinimatografos-Theatro category (Checkpoint B audit)
+    "\u03b9\u03b8\u03bf\u03c0\u03b9\u03bf\u03b9": "\u039a\u03b9\u03bd\u03b7\u03bc\u03b1\u03c4\u03bf\u03b3\u03c1\u03ac\u03c6\u03bf\u03c2\u0020\u002d\u0020\u0398\u03ad\u03b1\u03c4\u03c1\u03bf", // verified: \u03b7\u03b8\u03bf\u03c0\u03bf\u03b9\u03bf\u03cd -> official Kinimatografos-Theatro category (Checkpoint B audit)
+    "\u03b9\u03b8\u03bf\u03c0\u03b9\u03bf\u03bd": "\u039a\u03b9\u03bd\u03b7\u03bc\u03b1\u03c4\u03bf\u03b3\u03c1\u03ac\u03c6\u03bf\u03c2\u0020\u002d\u0020\u0398\u03ad\u03b1\u03c4\u03c1\u03bf", // verified: \u03b7\u03b8\u03bf\u03c0\u03bf\u03b9\u03ce\u03bd -> official Kinimatografos-Theatro category (Checkpoint B audit)
+  };
+  // Latin-script acronyms embedded in an official category's ORIGINAL (pre-fold)
+  // text, e.g. category "(AI)" suffix -> "ai". Extracted before normalize/fold
+  // strips the parentheses, so short acronyms aren't lost to the length filter
+  // below (which excludes short tokens elsewhere to avoid generic-word noise).
+  function extractAcronyms(originalText) {
+    const out = new Set();
+    const re = /\b[A-Z]{2,6}\b/g;
+    let m;
+    while ((m = re.exec(String(originalText || "")))) out.add(m[0].toLowerCase());
+    return out;
+  }
+
+  // Minimum shared-prefix length before two folded words are even considered
+  // for the fuzzy category-word match below (same spirit as MIN_SHARED_PREFIX
+  // for typo tolerance, kept separate since the safety requirements differ).
+  const CATEGORY_FUZZY_MIN_PREFIX = 4;
+  // How much of the longer/shorter word must be covered by that shared prefix
+  // for a fuzzy category-word match (root+different suffix, e.g. official
+  // "\u039d\u03b1\u03c5\u03c4\u03b9\u03bb\u03b9\u03b1\u03ba\u03ac" matching query "\u03bd\u03b1\u03c5\u03c4\u03b9\u03bb\u03af\u03b1") to count. Deliberately loose
+  // per-word - safety against over-matching comes from resolveCategoryIntent()
+  // requiring ALL query words to agree on exactly one category, not from this
+  // ratio alone (verified against the real 63-category vocabulary: ambiguous
+  // roots that recur across multiple official categories, e.g. "\u03b1\u03bd\u03ac\u03c0\u03c4\u03c5\u03be\u03b7"
+  // or "\u03b5\u03c0\u03b1\u03b3\u03b3\u03b5\u03bb\u03bc\u03b1\u03c4\u03b9\u03ba\u03cc\u03c2", correctly produce 2+ candidate
+  // categories for that one word, which resolveCategoryIntent then treats as
+  // unresolved for that word rather than picking one).
+  const CATEGORY_FUZZY_MIN_RATIO = 0.7;
+
+  function commonPrefixLen(a, b) {
+    let i = 0;
+    const n = Math.min(a.length, b.length);
+    while (i < n && a[i] === b[i]) i++;
+    return i;
+  }
+
+  function buildCategoryIndex(programs) {
+    const byFolded = new Map(); // foldedFullName -> { name, folded, tokens: Set, acronyms: Set }
+    programs.forEach((p) => {
+      const names = new Set([p.primary_area, ...(p.areas_of_study || [])].filter(Boolean));
+      names.forEach((name) => {
+        const folded = foldGreek(normalize(name));
+        if (!byFolded.has(folded)) {
+          const tokens = new Set(folded.split(" ").filter((t) => t.length >= 3 && !STOPWORDS.has(t)));
+          byFolded.set(folded, { name, folded, tokens, acronyms: extractAcronyms(name) });
+        }
+      });
+    });
+    const categories = Array.from(byFolded.values());
+    // Validate the explicit alias targets actually exist in this dataset - an
+    // alias pointing at a category that isn't (or is no longer) present must
+    // never silently "match everything"; drop it instead.
+    const aliasMap = new Map();
+    Object.entries(CATEGORY_ALIASES).forEach(([foldedWord, targetName]) => {
+      const targetFolded = foldGreek(normalize(targetName));
+      if (byFolded.has(targetFolded)) aliasMap.set(foldedWord, byFolded.get(targetFolded).name);
+    });
+    return { categories, aliasMap };
+  }
+
+  const categoryIndexCache = new WeakMap();
+  function getCategoryIndex(programs) {
+    let ci = categoryIndexCache.get(programs);
+    if (!ci) { ci = buildCategoryIndex(programs); categoryIndexCache.set(programs, ci); }
+    return ci;
+  }
+
+  // Which official categories (by name) a single folded, non-stopword query
+  // word resolves to. Empty = the word isn't a recognized category reference
+  // at all (a real topical word, a typo, or simply not part of the taxonomy).
+  function categoriesForWord(word, categoryIndex) {
+    const hits = new Set();
+    if (categoryIndex.aliasMap.has(word)) hits.add(categoryIndex.aliasMap.get(word));
+    categoryIndex.categories.forEach((cat) => {
+      if (hits.has(cat.name)) return;
+      if (cat.tokens.has(word) || cat.acronyms.has(word)) { hits.add(cat.name); return; }
+      if (word.length < CATEGORY_FUZZY_MIN_PREFIX) return;
+      for (const tok of cat.tokens) {
+        if (tok.length < CATEGORY_FUZZY_MIN_PREFIX) continue;
+        const cp = commonPrefixLen(word, tok);
+        if (cp < CATEGORY_FUZZY_MIN_PREFIX) continue;
+        if (Math.max(cp / tok.length, cp / word.length) >= CATEGORY_FUZZY_MIN_RATIO) { hits.add(cat.name); break; }
+      }
+    });
+    return hits;
+  }
+
+  // Resolves a query to exactly one official category, or null. Conservative
+  // by construction: every meaningful (non-stopword) word in the query must
+  // point to the SAME single category - a word that resolves to nothing, or to
+  // a different category than the rest, makes the whole query unresolved
+  // (falls back to normal semantic search, never guesses).
+  function resolveCategoryIntent(programs, query) {
+    const categoryIndex = getCategoryIndex(programs);
+    if (!categoryIndex.categories.length) return null;
+    for (const variant of queryVariants(query)) {
+      const words = variant.split(" ").filter((w) => w.length >= 2 && !STOPWORDS.has(w));
+      if (!words.length) continue;
+      let intersection = null;
+      let anyUnresolved = false;
+      for (const w of words) {
+        const hits = categoriesForWord(w, categoryIndex);
+        if (!hits.size) { anyUnresolved = true; break; }
+        intersection = intersection === null ? hits : new Set([...intersection].filter((c) => hits.has(c)));
+        if (!intersection.size) { anyUnresolved = true; break; }
+      }
+      if (!anyUnresolved && intersection && intersection.size === 1) {
+        return Array.from(intersection)[0];
+      }
+    }
+    return null;
+  }
+
+  // --- Checkpoint B: audience/profession words that are confidently relevant
+  // to MULTIPLE official categories at once, verified against the real
+  // dataset (see the Checkpoint B report for the audit). Unlike
+  // CATEGORY_ALIASES above (one word -> one category), each entry here maps
+  // one word -> an array of official category names. Deliberately its own,
+  // narrow mechanism rather than a generalization of CATEGORY_ALIASES/
+  // categoriesForWord: it is consulted ONLY when a query reduces to exactly
+  // one meaningful (non-stopword) word, so it can never combine with a
+  // second word's own candidates the way the general fuzzy/token matching in
+  // categoriesForWord does - which is what keeps compound queries like
+  // "AI για γιατρούς" / "marketing ξενοδοχείων" safe (see negative tests).
+  //
+  // δάσκαλος/δασκάλα/δάσκαλοι/δασκάλες/δασκάλους/δασκάλου and εκπαιδευτικός/... have ZERO literal
+  // overlap with either category name (confirmed in the audit: 0 category-name
+  // token matches for either word), so a plain alias-to-string entry in
+  // CATEGORY_ALIASES would only ever pick one target and arbitrarily ignore
+  // the other equally-real one. Both targets are real, disjoint, and each
+  // independently plausible for a teacher/educator audience:
+  //   - "Παιδαγωγικά" (71 members): pedagogy/teaching-methods programs.
+  //   - "Μοριοδοτούμενα Προγράμματα Παιδαγωγικών & Ειδικής Αγωγής" (52 members):
+  //     programs that carry official teacher-hiring/promotion credit points
+  //     ("μοριοδότηση") in the Greek public-education system - i.e. exactly
+  //     the kind of program a working teacher searches for.
+  // Deliberately EXCLUDES neuter/adjectival forms ("εκπαιδευτικό", "εκπαιδευτικά",
+  // "εκπαιδευτικές") since those are overwhelmingly used as an ADJECTIVE
+  // ("εκπαιδευτικό λογισμικό", "εκπαιδευτικές δραστηριότητες") rather than the
+  // noun "a teacher/educator" - including them here would risk this mechanism
+  // firing on a bare adjective with no noun, which is not how the audience/
+  // profession intent this checkpoint targets actually gets typed.
+  const AUDIENCE_MULTI_CATEGORY_ALIASES = {
+    "\u03b4\u03b1\u03c3\u03ba\u03b1\u03bb\u03bf\u03c2": ["\u03a0\u03b1\u03b9\u03b4\u03b1\u03b3\u03c9\u03b3\u03b9\u03ba\u03ac", "\u039c\u03bf\u03c1\u03b9\u03bf\u03b4\u03bf\u03c4\u03bf\u03cd\u03bc\u03b5\u03bd\u03b1\u0020\u03a0\u03c1\u03bf\u03b3\u03c1\u03ac\u03bc\u03bc\u03b1\u03c4\u03b1\u0020\u03a0\u03b1\u03b9\u03b4\u03b1\u03b3\u03c9\u03b3\u03b9\u03ba\u03ce\u03bd\u0020\u0026\u0020\u0395\u03b9\u03b4\u03b9\u03ba\u03ae\u03c2\u0020\u0391\u03b3\u03c9\u03b3\u03ae\u03c2"], // verified: \u03b4\u03ac\u03c3\u03ba\u03b1\u03bb\u03bf\u03c2 -> Paidagogika + Moriodotoumena (Checkpoint B audit)
+    "\u03b4\u03b1\u03c3\u03ba\u03b1\u03bb\u03b1": ["\u03a0\u03b1\u03b9\u03b4\u03b1\u03b3\u03c9\u03b3\u03b9\u03ba\u03ac", "\u039c\u03bf\u03c1\u03b9\u03bf\u03b4\u03bf\u03c4\u03bf\u03cd\u03bc\u03b5\u03bd\u03b1\u0020\u03a0\u03c1\u03bf\u03b3\u03c1\u03ac\u03bc\u03bc\u03b1\u03c4\u03b1\u0020\u03a0\u03b1\u03b9\u03b4\u03b1\u03b3\u03c9\u03b3\u03b9\u03ba\u03ce\u03bd\u0020\u0026\u0020\u0395\u03b9\u03b4\u03b9\u03ba\u03ae\u03c2\u0020\u0391\u03b3\u03c9\u03b3\u03ae\u03c2"], // verified: \u03b4\u03b1\u03c3\u03ba\u03ac\u03bb\u03b1 -> Paidagogika + Moriodotoumena (Checkpoint B audit)
+    "\u03b4\u03b1\u03c3\u03ba\u03b1\u03bb\u03b9": ["\u03a0\u03b1\u03b9\u03b4\u03b1\u03b3\u03c9\u03b3\u03b9\u03ba\u03ac", "\u039c\u03bf\u03c1\u03b9\u03bf\u03b4\u03bf\u03c4\u03bf\u03cd\u03bc\u03b5\u03bd\u03b1\u0020\u03a0\u03c1\u03bf\u03b3\u03c1\u03ac\u03bc\u03bc\u03b1\u03c4\u03b1\u0020\u03a0\u03b1\u03b9\u03b4\u03b1\u03b3\u03c9\u03b3\u03b9\u03ba\u03ce\u03bd\u0020\u0026\u0020\u0395\u03b9\u03b4\u03b9\u03ba\u03ae\u03c2\u0020\u0391\u03b3\u03c9\u03b3\u03ae\u03c2"], // verified: \u03b4\u03ac\u03c3\u03ba\u03b1\u03bb\u03bf\u03b9 -> Paidagogika + Moriodotoumena (Checkpoint B audit)
+    "\u03b4\u03b1\u03c3\u03ba\u03b1\u03bb\u03b5\u03c2": ["\u03a0\u03b1\u03b9\u03b4\u03b1\u03b3\u03c9\u03b3\u03b9\u03ba\u03ac", "\u039c\u03bf\u03c1\u03b9\u03bf\u03b4\u03bf\u03c4\u03bf\u03cd\u03bc\u03b5\u03bd\u03b1\u0020\u03a0\u03c1\u03bf\u03b3\u03c1\u03ac\u03bc\u03bc\u03b1\u03c4\u03b1\u0020\u03a0\u03b1\u03b9\u03b4\u03b1\u03b3\u03c9\u03b3\u03b9\u03ba\u03ce\u03bd\u0020\u0026\u0020\u0395\u03b9\u03b4\u03b9\u03ba\u03ae\u03c2\u0020\u0391\u03b3\u03c9\u03b3\u03ae\u03c2"], // verified: \u03b4\u03b1\u03c3\u03ba\u03ac\u03bb\u03b5\u03c2 -> Paidagogika + Moriodotoumena (Checkpoint B audit)
+    "\u03b4\u03b1\u03c3\u03ba\u03b1\u03bb\u03bf\u03b9\u03c2": ["\u03a0\u03b1\u03b9\u03b4\u03b1\u03b3\u03c9\u03b3\u03b9\u03ba\u03ac", "\u039c\u03bf\u03c1\u03b9\u03bf\u03b4\u03bf\u03c4\u03bf\u03cd\u03bc\u03b5\u03bd\u03b1\u0020\u03a0\u03c1\u03bf\u03b3\u03c1\u03ac\u03bc\u03bc\u03b1\u03c4\u03b1\u0020\u03a0\u03b1\u03b9\u03b4\u03b1\u03b3\u03c9\u03b3\u03b9\u03ba\u03ce\u03bd\u0020\u0026\u0020\u0395\u03b9\u03b4\u03b9\u03ba\u03ae\u03c2\u0020\u0391\u03b3\u03c9\u03b3\u03ae\u03c2"], // verified: \u03b4\u03b1\u03c3\u03ba\u03ac\u03bb\u03bf\u03c5\u03c2 -> Paidagogika + Moriodotoumena (Checkpoint B audit)
+    "\u03b4\u03b1\u03c3\u03ba\u03b1\u03bb\u03bf\u03b9": ["\u03a0\u03b1\u03b9\u03b4\u03b1\u03b3\u03c9\u03b3\u03b9\u03ba\u03ac", "\u039c\u03bf\u03c1\u03b9\u03bf\u03b4\u03bf\u03c4\u03bf\u03cd\u03bc\u03b5\u03bd\u03b1\u0020\u03a0\u03c1\u03bf\u03b3\u03c1\u03ac\u03bc\u03bc\u03b1\u03c4\u03b1\u0020\u03a0\u03b1\u03b9\u03b4\u03b1\u03b3\u03c9\u03b3\u03b9\u03ba\u03ce\u03bd\u0020\u0026\u0020\u0395\u03b9\u03b4\u03b9\u03ba\u03ae\u03c2\u0020\u0391\u03b3\u03c9\u03b3\u03ae\u03c2"], // verified: \u03b4\u03b1\u03c3\u03ba\u03ac\u03bb\u03bf\u03c5 -> Paidagogika + Moriodotoumena (Checkpoint B audit)
+    "\u03b5\u03ba\u03c0\u03b1\u03b9\u03b4\u03b5\u03b9\u03c4\u03b9\u03ba\u03bf\u03c2": ["\u03a0\u03b1\u03b9\u03b4\u03b1\u03b3\u03c9\u03b3\u03b9\u03ba\u03ac", "\u039c\u03bf\u03c1\u03b9\u03bf\u03b4\u03bf\u03c4\u03bf\u03cd\u03bc\u03b5\u03bd\u03b1\u0020\u03a0\u03c1\u03bf\u03b3\u03c1\u03ac\u03bc\u03bc\u03b1\u03c4\u03b1\u0020\u03a0\u03b1\u03b9\u03b4\u03b1\u03b3\u03c9\u03b3\u03b9\u03ba\u03ce\u03bd\u0020\u0026\u0020\u0395\u03b9\u03b4\u03b9\u03ba\u03ae\u03c2\u0020\u0391\u03b3\u03c9\u03b3\u03ae\u03c2"], // verified: \u03b5\u03ba\u03c0\u03b1\u03b9\u03b4\u03b5\u03c5\u03c4\u03b9\u03ba\u03cc\u03c2 -> Paidagogika + Moriodotoumena (Checkpoint B audit)
+    "\u03b5\u03ba\u03c0\u03b1\u03b9\u03b4\u03b5\u03b9\u03c4\u03b9\u03ba\u03bf\u03b9": ["\u03a0\u03b1\u03b9\u03b4\u03b1\u03b3\u03c9\u03b3\u03b9\u03ba\u03ac", "\u039c\u03bf\u03c1\u03b9\u03bf\u03b4\u03bf\u03c4\u03bf\u03cd\u03bc\u03b5\u03bd\u03b1\u0020\u03a0\u03c1\u03bf\u03b3\u03c1\u03ac\u03bc\u03bc\u03b1\u03c4\u03b1\u0020\u03a0\u03b1\u03b9\u03b4\u03b1\u03b3\u03c9\u03b3\u03b9\u03ba\u03ce\u03bd\u0020\u0026\u0020\u0395\u03b9\u03b4\u03b9\u03ba\u03ae\u03c2\u0020\u0391\u03b3\u03c9\u03b3\u03ae\u03c2"], // verified: \u03b5\u03ba\u03c0\u03b1\u03b9\u03b4\u03b5\u03c5\u03c4\u03b9\u03ba\u03bf\u03cd -> Paidagogika + Moriodotoumena (Checkpoint B audit)
+    "\u03b5\u03ba\u03c0\u03b1\u03b9\u03b4\u03b5\u03b9\u03c4\u03b9\u03ba\u03b9": ["\u03a0\u03b1\u03b9\u03b4\u03b1\u03b3\u03c9\u03b3\u03b9\u03ba\u03ac", "\u039c\u03bf\u03c1\u03b9\u03bf\u03b4\u03bf\u03c4\u03bf\u03cd\u03bc\u03b5\u03bd\u03b1\u0020\u03a0\u03c1\u03bf\u03b3\u03c1\u03ac\u03bc\u03bc\u03b1\u03c4\u03b1\u0020\u03a0\u03b1\u03b9\u03b4\u03b1\u03b3\u03c9\u03b3\u03b9\u03ba\u03ce\u03bd\u0020\u0026\u0020\u0395\u03b9\u03b4\u03b9\u03ba\u03ae\u03c2\u0020\u0391\u03b3\u03c9\u03b3\u03ae\u03c2"], // verified: \u03b5\u03ba\u03c0\u03b1\u03b9\u03b4\u03b5\u03c5\u03c4\u03b9\u03ba\u03bf\u03af -> Paidagogika + Moriodotoumena (Checkpoint B audit)
+    "\u03b5\u03ba\u03c0\u03b1\u03b9\u03b4\u03b5\u03b9\u03c4\u03b9\u03ba\u03bf\u03b9\u03c2": ["\u03a0\u03b1\u03b9\u03b4\u03b1\u03b3\u03c9\u03b3\u03b9\u03ba\u03ac", "\u039c\u03bf\u03c1\u03b9\u03bf\u03b4\u03bf\u03c4\u03bf\u03cd\u03bc\u03b5\u03bd\u03b1\u0020\u03a0\u03c1\u03bf\u03b3\u03c1\u03ac\u03bc\u03bc\u03b1\u03c4\u03b1\u0020\u03a0\u03b1\u03b9\u03b4\u03b1\u03b3\u03c9\u03b3\u03b9\u03ba\u03ce\u03bd\u0020\u0026\u0020\u0395\u03b9\u03b4\u03b9\u03ba\u03ae\u03c2\u0020\u0391\u03b3\u03c9\u03b3\u03ae\u03c2"], // verified: \u03b5\u03ba\u03c0\u03b1\u03b9\u03b4\u03b5\u03c5\u03c4\u03b9\u03ba\u03bf\u03cd\u03c2 -> Paidagogika + Moriodotoumena (Checkpoint B audit)
+    "\u03b5\u03ba\u03c0\u03b1\u03b9\u03b4\u03b5\u03b9\u03c4\u03b9\u03ba\u03bf\u03bd": ["\u03a0\u03b1\u03b9\u03b4\u03b1\u03b3\u03c9\u03b3\u03b9\u03ba\u03ac", "\u039c\u03bf\u03c1\u03b9\u03bf\u03b4\u03bf\u03c4\u03bf\u03cd\u03bc\u03b5\u03bd\u03b1\u0020\u03a0\u03c1\u03bf\u03b3\u03c1\u03ac\u03bc\u03bc\u03b1\u03c4\u03b1\u0020\u03a0\u03b1\u03b9\u03b4\u03b1\u03b3\u03c9\u03b3\u03b9\u03ba\u03ce\u03bd\u0020\u0026\u0020\u0395\u03b9\u03b4\u03b9\u03ba\u03ae\u03c2\u0020\u0391\u03b3\u03c9\u03b3\u03ae\u03c2"], // verified: \u03b5\u03ba\u03c0\u03b1\u03b9\u03b4\u03b5\u03c5\u03c4\u03b9\u03ba\u03ce\u03bd -> Paidagogika + Moriodotoumena (Checkpoint B audit)
+  };
+
+  function resolveAudienceMultiCategoryIntent(programs, query) {
+    const categoryIndex = getCategoryIndex(programs);
+    if (!categoryIndex.categories.length) return null;
+    const validNames = new Set(categoryIndex.categories.map((c) => c.name));
+    for (const variant of queryVariants(query)) {
+      const words = variant.split(" ").filter((w) => w.length >= 2 && !STOPWORDS.has(w));
+      // Only ever consult this table when the query reduces to exactly one
+      // meaningful word - see the comment on AUDIENCE_MULTI_CATEGORY_ALIASES.
+      if (words.length !== 1) continue;
+      const targets = AUDIENCE_MULTI_CATEGORY_ALIASES[words[0]];
+      if (!targets) continue;
+      const resolved = targets.filter((name) => validNames.has(name));
+      if (resolved.length > 1) return resolved;
+      if (resolved.length === 1) return resolved[0];
+    }
+    return null;
+  }
+
+
+  function programBelongsToCategory(program, categoryName) {
+    if (!program || !categoryName) return false;
+    if (program.primary_area === categoryName) return true;
+    return Array.isArray(program.areas_of_study) && program.areas_of_study.includes(categoryName);
+  }
+
+  // --- Checkpoint B, Type B: "audience/profession -> controlled topic set".
+  // For a real-world topic that has NO official category in primary_area/
+  // areas_of_study at all (verified in the audit - "chef"/"σεφ"/"μαγειρική"
+  // have zero category matches), inventing a fake category would violate the
+  // task's explicit constraint. Instead this maps the word directly to an
+  // explicit, small, hand-verified list of real program slugs - never a
+  // category name, and never combined with the category machinery above.
+  //
+  // "chef" (English) / "σεφ" (Greek transliteration) and "μαγειρική" (the Greek
+  // noun for "cooking") are three names for the exact same real-world topic;
+  // the catalog has exactly 2 real programs about it. "μαγειρική" already finds
+  // both via ordinary title matching (verified in the audit: score 146 each),
+  // but "chef"/"σεφ" match nothing today despite meaning the same thing - this
+  // set makes all three resolve to the identical, verified pair of slugs.
+  // --- Checkpoint D.1: profession/audience intent backed by a controlled
+  // program set when no single official taxonomy category represents the
+  // profession.  "Philologist" is intentionally NOT mapped to all Pedagogy:
+  // the audited catalog shows a narrower subject cluster (Greek language/texts,
+  // literature and history) and the live partial query "φιλολο" already
+  // surfaces the strongest members of that cluster.
+  // Checkpoint D.1 Revision — Dynamic Audience Eligibility.
+  // Keep the audited thematic seed set, but augment it dynamically with programs
+  // whose own description explicitly declares philology graduates/philologists as
+  // target audience. This is deliberately anchored to audience-introduction wording
+  // ("απευθύνεται σε" / "απευθύνεται") so incidental mentions such as an academic
+  // coordinator's Department of Philology do not qualify a program by themselves.
+  const AUDIENCE_PROGRAM_SETS = {
+    philologist: [
+      "arxaia-ellhnika-gia-arxarious",
+      "didaktiki-neoellinikon-keimenon",
+      "methodologia-kai-didaktiki-tis-hstorias",
+      "oi-piges-tou-hstorikou-ereunontas-tin-elliniki-hstoria-tou-20ou-aiona",
+      "neoteri-kai-sugxroni-elliniki-hstoria-1821-2021-tomes-kai-gegonota",
+      "anagnosi-filanagnosia-kai-paidiki-logotexnia",
+      "h-epidimia-os-thema-kai-os-metafora-sti-logotexnia",
+    ],
+  };
+  const AUDIENCE_PROGRAM_ALIASES = {
+    "φιλολογος": "philologist",
+    "φιλολογο": "philologist",
+    "φιλολογοι": "philologist",
+    "φιλολογι": "philologist",
+    "φιλολογοις": "philologist",
+  };
+
+  function explicitlyTargetsPhilologists(p) {
+    const text = normalize([p.description_for_matching, p.description_full].filter(Boolean).join(" "));
+    if (!text) return false;
+    // Audience lists can be long. Inspect a bounded span after each explicit
+    // "απευθύνεται" marker; 900 chars covers the real catalog's bullet lists while
+    // preventing unrelated later biography/metadata mentions from qualifying.
+    const marker = "απευθυνεται";
+    let from = 0;
+    while (true) {
+      const i = text.indexOf(marker, from);
+      if (i < 0) break;
+      const audienceSpan = text.slice(i, i + 900);
+      if (/(?<!\p{L})φιλολογ(?:ος|οι|ους|ου|ιας|ιων|ιες|ικων)?(?!\p{L})/u.test(audienceSpan)) return true;
+      from = i + marker.length;
+    }
+    return false;
+  }
+
+  function audienceProgramSlugs(programs, audience) {
+    const seed = AUDIENCE_PROGRAM_SETS[audience] || [];
+    const out = [];
+    const seen = new Set();
+    seed.forEach((slug) => {
+      if (!seen.has(slug) && programs.some((p) => p.slug === slug)) { seen.add(slug); out.push(slug); }
+    });
+    if (audience === "philologist") {
+      programs.forEach((p) => {
+        if (p.slug && !seen.has(p.slug) && explicitlyTargetsPhilologists(p)) {
+          seen.add(p.slug); out.push(p.slug);
+        }
+      });
+    }
+    return out;
+  }
+
+  function resolveAudienceProgramIntent(programs, query) {
+    for (const variant of queryVariants(query)) {
+      const words = variant.split(" ").filter((w) => w.length >= 2 && !STOPWORDS.has(w));
+      if (words.length !== 1) continue;
+      const audience = AUDIENCE_PROGRAM_ALIASES[words[0]];
+      if (!audience || !AUDIENCE_PROGRAM_SETS[audience]) continue;
+      return audienceProgramSlugs(programs, audience);
+    }
+    return null;
+  }
+
+  const TOPIC_SETS = {
+    cooking: [
+      "epaggelmatikh-mageirikh-sugxronh-kouzina", // Επαγγελματική Μαγειρική και Σύγχρονη Κουζίνα
+      "epaggelmatikh-mageirikh-ellhnikh-kouzina", // Επαγγελματική Μαγειρική και Ελληνική Κουζίνα
+    ],
+  };
+  // Keys are ALREADY folded (foldGreek(normalize(word))), same convention as
+  // CATEGORY_ALIASES above.
+  const TOPIC_ALIASES = {
+    chef: "cooking", // English, as typed by the widget's own example query
+    "σεφ": "cooking",
+    "μαγιρικι": "cooking", // folded μαγειρική
+    "μαγιρικις": "cooking", // folded μαγειρικής (genitive, e.g. "σχολή μαγειρικής")
+  };
+
+  // Resolves a query to a controlled topic's slug list, or null. Same
+  // conservative shape as resolveCategoryIntent: every meaningful word must
+  // agree on the SAME topic, and an unresolved or disagreeing word makes the
+  // whole query fall through to normal search - never a forced, wrong topic.
+  function resolveTopicIntent(programs, query) {
+    for (const variant of queryVariants(query)) {
+      const words = variant.split(" ").filter((w) => w.length >= 2 && !STOPWORDS.has(w));
+      if (!words.length) continue;
+      let topic = null;
+      let anyUnresolved = false;
+      for (const w of words) {
+        const t = TOPIC_ALIASES[w];
+        if (!t) { anyUnresolved = true; break; }
+        if (topic === null) topic = t;
+        else if (topic !== t) { anyUnresolved = true; break; }
+      }
+      if (!anyUnresolved && topic && TOPIC_SETS[topic]) {
+        return TOPIC_SETS[topic].filter((slug) => programs.some((p) => p.slug === slug));
+      }
+    }
+    return null;
+  }
+
   const MAX_QUERY_LENGTH = 700; // hard cap: no legitimate search needs more than this,
   // and it bounds the cost of vocabulary fuzzy-matching (which scales with query token count).
   const RANK_CACHE_SIZE = 300;
@@ -454,11 +824,66 @@
     const { termsFlat: terms, byWord } = expandQueryDetailed(query, concepts, idx.vocab);
     const ranked = [];
     if (variants.length) {
-      for (let i = 0; i < idx.entries.length; i++) {
-        const s = scoreEntry(idx.entries[i], variants, terms, byWord);
-        if (s > 0) ranked.push({ i, s });
+      // Checkpoint A: single official category. Checkpoint B: the SAME word
+      // may instead resolve to several official categories at once (audience/
+      // profession aliases verified in the Checkpoint B audit), or to a
+      // controlled topic set (Type B, for real topics with no official
+      // category at all). All three are mutually exclusive by construction
+      // (disjoint alias tables), tried in this fixed order, and every one of
+      // them falls through to plain scored search below when unresolved -
+      // intent resolution failing NEVER produces zero results by itself.
+      let categoryNames = resolveCategoryIntent(programs, query);
+      if (!categoryNames) categoryNames = resolveAudienceMultiCategoryIntent(programs, query);
+      if (categoryNames) {
+        // Category intent resolved with confidence: the candidate set is EVERY
+        // official member of that category (or, for an array, the UNION of
+        // members across every resolved category, deduplicated by slug), even
+        // ones the raw query terms score 0 against (a member's title/tags/
+        // description need not mention the query at all to belong) - then rank
+        // within that fixed set using the exact same scoreEntry() the normal
+        // path uses below, so a member that ALSO genuinely matches the query
+        // surfaces first. Ties broken by original catalog order, for determinism.
+        const names = Array.isArray(categoryNames) ? categoryNames : [categoryNames];
+        for (let i = 0; i < idx.entries.length; i++) {
+          if (!names.some((name) => programBelongsToCategory(idx.entries[i].p, name))) continue;
+          ranked.push({ i, s: scoreEntry(idx.entries[i], variants, terms, byWord) });
+        }
+        ranked.sort((a, b) => b.s - a.s || a.i - b.i);
+      } else {
+        const audienceProgramSlugs = resolveAudienceProgramIntent(programs, query);
+        const topicSlugs = audienceProgramSlugs || resolveTopicIntent(programs, query);
+        if (topicSlugs && topicSlugs.length) {
+          // Controlled topic set (Type B): the candidate set is EXACTLY the
+          // verified slug list, nothing added, nothing left out - deliberately
+          // narrower than the category branch above, per the task's explicit
+          // instruction to return only the topic-mapped programs.
+          const slugSet = new Set(topicSlugs);
+          for (let i = 0; i < idx.entries.length; i++) {
+            if (!slugSet.has(idx.entries[i].p.slug)) continue;
+            ranked.push({ i, s: scoreEntry(idx.entries[i], variants, terms, byWord) });
+          }
+          if (audienceProgramSlugs) {
+            // For audience searches, audited thematic programs remain the strongest
+            // recommendations; programs included solely because they explicitly name
+            // the audience follow them. Within each tier, normal relevance scoring
+            // and catalog order remain deterministic.
+            const thematicSeed = new Set(AUDIENCE_PROGRAM_SETS.philologist || []);
+            ranked.sort((a, b) => {
+              const ap = thematicSeed.has(idx.entries[a.i].p.slug) ? 0 : 1;
+              const bp = thematicSeed.has(idx.entries[b.i].p.slug) ? 0 : 1;
+              return ap - bp || b.s - a.s || a.i - b.i;
+            });
+          } else {
+            ranked.sort((a, b) => b.s - a.s || a.i - b.i);
+          }
+        } else {
+          for (let i = 0; i < idx.entries.length; i++) {
+            const s = scoreEntry(idx.entries[i], variants, terms, byWord);
+            if (s > 0) ranked.push({ i, s });
+          }
+          ranked.sort((a, b) => b.s - a.s);
+        }
       }
-      ranked.sort((a, b) => b.s - a.s);
     }
     idx.rankCache.set(key, ranked);
     if (idx.rankCache.size > RANK_CACHE_SIZE) idx.rankCache.delete(idx.rankCache.keys().next().value);
@@ -493,5 +918,7 @@
   return {
     normalize, foldGreek, transliterateGreeklish, levenshtein, phraseMatches, expandQuery,
     expandQueryDetailed, containsTerm, score, search, rank, describeExpansion, getVocabulary, queryVariants,
+    STOPWORDS, buildCategoryIndex, resolveCategoryIntent, programBelongsToCategory,
+    resolveAudienceMultiCategoryIntent, resolveAudienceProgramIntent, explicitlyTargetsPhilologists, resolveTopicIntent,
   };
 });
