@@ -807,13 +807,171 @@
     return null;
   }
 
+  // Checkpoint G5: trusted typo recovery.
+  //
+  // This vocabulary is deliberately separate from buildVocabulary(). Official
+  // taxonomy tokens may be very frequent, so adding them to the ordinary fuzzy
+  // vocabulary would change already-correct searches. Here they are used only
+  // as correction targets for a query token that is not already canonical.
+  const trustedTypoVocabularyCache = new WeakMap();
+
+  function buildTrustedTypoVocabulary(programs) {
+    const cached = trustedTypoVocabularyCache.get(programs);
+    if (cached) return cached;
+
+    const trusted = new Set();
+    const categories = new Set();
+
+    programs.forEach((p) => {
+      (p.areas_of_study || []).forEach((area) => {
+        if (area) categories.add(area);
+      });
+    });
+
+    categories.forEach((area) => {
+      // Only taxonomy categories that the existing authoritative category
+      // resolver already recognizes may contribute automatic typo targets.
+      // This keeps typo recovery subordinate to established search intent
+      // instead of turning every taxonomy word into a new standalone intent.
+      if (!resolveCategoryIntent(programs, area)) return;
+
+      foldGreek(normalize(area)).split(" ").forEach((token) => {
+        if (token.length >= 5 && !STOPWORDS.has(token)) trusted.add(token);
+      });
+    });
+
+    const vocabulary = Array.from(trusted);
+    trustedTypoVocabularyCache.set(programs, vocabulary);
+    return vocabulary;
+  }
+
+  function adjacentTranspositionDistanceOne(a, b) {
+    if (a.length !== b.length || a === b) return false;
+
+    const diffs = [];
+    for (let i = 0; i < a.length; i++) {
+      if (a[i] !== b[i]) diffs.push(i);
+      if (diffs.length > 2) return false;
+    }
+
+    return diffs.length === 2 &&
+      diffs[1] === diffs[0] + 1 &&
+      a[diffs[0]] === b[diffs[1]] &&
+      a[diffs[1]] === b[diffs[0]];
+  }
+
+  function trustedTypoDistance(token, candidate) {
+    if (token === candidate) return null;
+    if (token.length < 5 || candidate.length < 5) return null;
+
+    // Common Greek keyboard/phonetic decomposition: πσ... typed instead of ψ...
+    // Keep this local to trusted typo matching; never rewrite the normal query.
+    let comparable = token;
+    if (comparable.slice(0, 2) === "πσ" && candidate[0] === "ψ") {
+      comparable = "ψ" + comparable.slice(2);
+      if (comparable === candidate) return 1;
+    }
+
+    if (adjacentTranspositionDistanceOne(comparable, candidate)) return 1;
+
+    const distance = levenshtein(comparable, candidate);
+
+    // One edit is safe for long trusted taxonomy words when their root agrees.
+    if (
+      distance === 1 &&
+      comparable.slice(0, 3) === candidate.slice(0, 3)
+    ) {
+      return 1;
+    }
+
+    // Greek folding can turn one visible missing-letter typo into two folded
+    // edits (for example ψυχολοια -> ψιχολια). Permit two edits only for
+    // sufficiently long words with a stronger four-character common root.
+    if (
+      distance === 2 &&
+      comparable.length >= 7 &&
+      candidate.length >= 7 &&
+      comparable.slice(0, 4) === candidate.slice(0, 4)
+    ) {
+      return 2;
+    }
+
+    return null;
+  }
+
+  function resolveTrustedTypo(programs, concepts, query) {
+    const trusted = buildTrustedTypoVocabulary(programs);
+    const variants = queryVariants(query);
+    if (!variants.length) return null;
+
+    // G5 starts conservatively with a single meaningful token. Compound-query
+    // correction can be added later with its own regression corpus rather than
+    // silently rewriting several user words at once.
+    const words = variants[0]
+      .split(" ")
+      .filter((w) => w.length >= 2 && !STOPWORDS.has(w));
+
+    if (words.length !== 1) return null;
+
+    const token = words[0];
+
+    // Preserve established semantic behavior. Calling the existing expansion
+    // pipeline without a vocabulary leaves only direct concept expansion;
+    // fuzzy vocabulary correction is therefore excluded from this guard.
+    const directExpansion = expandQueryDetailed(query, concepts, null);
+    const rawVariantTerms = new Set();
+
+    variants.forEach((variantText) => {
+      variantText
+        .split(" ")
+        .filter((w) => w.length > 1 && !STOPWORDS.has(w))
+        .forEach((w) => rawVariantTerms.add(w));
+    });
+
+    const hasDirectConceptExpansion = directExpansion.termsFlat.some(
+      (term) => !rawVariantTerms.has(term)
+    );
+
+    if (hasDirectConceptExpansion) return null;
+
+    // An already-authoritative taxonomy token is never fuzzy-corrected.
+    if (trusted.indexOf(token) !== -1) return null;
+
+    let bestDistance = Infinity;
+    let best = [];
+
+    for (const candidate of trusted) {
+      const distance = trustedTypoDistance(token, candidate);
+      if (distance === null) continue;
+
+      if (distance < bestDistance) {
+        bestDistance = distance;
+        best = [candidate];
+      } else if (distance === bestDistance) {
+        best.push(candidate);
+      }
+    }
+
+    // Ambiguity means no correction. We prefer the existing search behavior
+    // over guessing between equally plausible taxonomy terms.
+    return best.length === 1 ? best[0] : null;
+  }
+
   const MAX_QUERY_LENGTH = 700; // hard cap: no legitimate search needs more than this,
   // and it bounds the cost of vocabulary fuzzy-matching (which scales with query token count).
   const RANK_CACHE_SIZE = 300;
 
   // Full ranking of all matching programs: [{ entryIndex, s }] sorted by score desc.
-  function rankAll(programs, concepts, query) {
+  function rankAll(programs, concepts, query, skipTrustedTypoRecovery) {
     query = String(query || "").slice(0, MAX_QUERY_LENGTH);
+
+    if (!skipTrustedTypoRecovery) {
+      const trustedCorrection = resolveTrustedTypo(programs, concepts, query);
+      if (trustedCorrection) {
+        return rankAll(programs, concepts, trustedCorrection, true);
+      }
+    }
+
     const idx = getIndex(programs);
     if (idx.rankCacheConcepts !== concepts) { idx.rankCache.clear(); idx.rankCacheConcepts = concepts; }
     const key = foldGreek(normalize(query)) + " " + query.toLowerCase();

@@ -458,8 +458,9 @@ app.get("/api/search", searchLimiter, (req, res) => {
   let trackedCount;
   if (paged) {
     const allResults = EkpaSearch.rank(PROGRAMS, CONCEPTS, q);
-    trackedCount = allResults.length;
-    payload = SearchApiContract.buildPagedResponse(allResults, req.query);
+    const sortedResults = SearchApiContract.sortResults(allResults, req.query.sort);
+    trackedCount = sortedResults.length;
+    payload = SearchApiContract.buildPagedResponse(sortedResults, req.query);
   } else {
     const limit = SearchApiContract.clampLegacyLimit(req.query.limit);
     const results = EkpaSearch.search(PROGRAMS, CONCEPTS, q, limit);

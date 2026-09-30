@@ -31,6 +31,39 @@ function shapeResults(results, fields) {
   return fields === "compact" ? results.map(toCompactResult) : results;
 }
 
+function sortResults(results, sort) {
+  if (sort !== "price_asc") {
+    return results.slice();
+  }
+
+  return results
+    .map((item, index) => ({ item, index }))
+    .sort((a, b) => {
+      const aHasPrice =
+        a.item.price !== null &&
+        a.item.price !== undefined &&
+        a.item.price !== "";
+      const bHasPrice =
+        b.item.price !== null &&
+        b.item.price !== undefined &&
+        b.item.price !== "";
+
+      if (aHasPrice && !bHasPrice) return -1;
+      if (!aHasPrice && bHasPrice) return 1;
+
+      if (!aHasPrice && !bHasPrice) {
+        return a.index - b.index;
+      }
+
+      const priceDiff = Number(a.item.price) - Number(b.item.price);
+
+      if (priceDiff !== 0) return priceDiff;
+
+      return a.index - b.index;
+    })
+    .map((entry) => entry.item);
+}
+
 function buildPagedResponse(allResults, query) {
   const { page, pageSize, offset } = parsePagination(query);
   const total = allResults.length;
@@ -56,5 +89,6 @@ module.exports = {
   clampLegacyLimit,
   parsePagination,
   shapeResults,
+  sortResults,
   buildPagedResponse,
 };
