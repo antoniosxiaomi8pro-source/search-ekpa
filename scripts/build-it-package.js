@@ -29,7 +29,7 @@ const PROD_BACKEND = "https://smartfinder.elearningekpa.gr";
 const WIDGET_FILE = "release/gtm/ekpa-search-widget-gtm-v30-PRODUCTION.txt";
 const SITE_HEAD_FILE = "release/site-head/SITE-HEAD-HOLD-2026-10-01.html"; // optional snippet for the website <head>, shipped with the package
 const ROOT_DOCS = [
-  "ADMIN-PANEL-GUIDE.md", "ADMIN-CATALOG-GUIDE.md", "API-KEY-SETUP.md", "ARCHITECTURE.md", "DEPLOY-Railway.md",
+  "ADMIN-PANEL-GUIDE.md", "ADMIN-CATALOG-GUIDE.md", "ADMIN-LEXICON-GUIDE.md", "API-KEY-SETUP.md", "ARCHITECTURE.md", "DEPLOY-Railway.md",
   "DEPLOY-SelfHosted.md", "GTMREADME.md", "HANDOVER-NOTES.md", "INSTALL-GUIDE.md",
 ];
 // Not shipped inside search-ekpa/: Brandery-internal docs and the release assets
@@ -159,6 +159,13 @@ async function smokeTest(backendDir) {
     const adminPage = await (await fetch(`${base}/admin-taxonomy.html`)).text();
     if (!adminPage.includes("Κατάλογος")) fail("Το admin-taxonomy.html δεν έχει την καρτέλα Κατάλογος.");
     if (!adminPage.includes("exportBtn")) fail("Το admin-taxonomy.html δεν έχει το κουμπί εξαγωγής.");
+    if (!adminPage.includes("tabBtnLexicon") || !adminPage.includes("admin-lexicon.js")) fail("Το admin-taxonomy.html δεν έχει την καρτέλα Λεξικό.");
+    const lexJs = await fetch(`${base}/admin-lexicon.js`);
+    if (lexJs.status !== 200 || !(await lexJs.text()).includes("/api/admin/lexicon/preview")) fail("Το admin-lexicon.js δεν σερβίρεται σωστά.");
+    // The lexicon preview (worker thread) works in the packaged server and, for the unchanged lexicon, reports no change.
+    const pv = await fetch(`${base}/api/admin/lexicon/preview`, { method: "POST", headers: { "Content-Type": "application/json", "x-admin-token": SMOKE_TOKEN }, body: JSON.stringify({ lexicon }) });
+    const pvj = await pv.json();
+    if (pv.status !== 200 || pvj.changes.length !== 0 || pvj.changed !== 0) fail("Η προεπισκόπηση λεξικού δεν δουλεύει στο πακέτο: " + JSON.stringify(pvj).slice(0, 300));
 
     const allowed = await fetch(`${base}/api/search?q=hr`, { headers: ORIGIN });
     if (allowed.headers.get("access-control-allow-origin") !== "https://elearningekpa.gr") fail("CORS: δεν επιτρέπεται το https://elearningekpa.gr.");

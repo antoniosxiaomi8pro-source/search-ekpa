@@ -19,6 +19,7 @@ const { isActive } = CatalogSync;
 const { CatalogStore } = require("./catalog-store.js");
 const RankingDiff = require("./ranking-diff.js");
 const { LexiconStore } = require("./lexicon-store.js");
+const { previewLexicon } = require("./lexicon-preview.js");
 
 const PUBLIC_DIR = path.join(__dirname, "../public");
 // ---- Persistent data directory ----
@@ -339,7 +340,11 @@ app.use(compression()); // programs.json is ~4.9MB raw, well under 1MB gzipped
 // related programs silently disappear (found 2026-10-01).
 app.use((req, res, next) => { res.vary("Origin"); next(); });
 app.use(cors(corsDelegate));
-app.use(express.json({ limit: "64kb" }));
+// The lexicon routes read a larger body (a few hundred words), but only AFTER the admin token
+// check, so the bigger limit is never available to the public.
+const jsonSmall = express.json({ limit: "64kb" });
+const jsonLexicon = express.json({ limit: "512kb" });
+app.use((req, res, next) => (req.path.startsWith("/api/admin/lexicon/") ? next() : jsonSmall(req, res, next)));
 
 // Current taxonomy, served from memory (so it is always the latest saved version, also
 // when it lives in DATA_DIR rather than in public/). Registered BEFORE express.static.
@@ -696,8 +701,52 @@ app.post("/api/admin/concepts", adminLimiter, checkAdminToken, (req, res) => {
 });
 
 // ---- Admin: lexicon status and full data export ----
+const lexiconVersion = () => crypto.createHash("sha1").update(JSON.stringify(lexiconStore.current())).digest("hex").slice(0, 16);
 app.get("/api/admin/lexicon", catalogStatusLimiter, checkAdminToken, (req, res) => {
-  res.json({ ...lexiconStore.status(), lexicon: lexiconStore.current() });
+  res.json({ ...lexiconStore.status(), version: lexiconVersion(), lexicon: lexiconStore.current(), backup_files: lexiconStore.listBackups().slice(0, 20) });
+});
+// What would change in the results if this draft were saved? (compares in a worker thread,
+// never touching the live lexicon). One at a time.
+let lexiconPreviewRunning = false;
+app.post("/api/admin/lexicon/preview", adminLimiter, checkAdminToken, jsonLexicon, async (req, res) => {
+  const draft = req.body && req.body.lexicon;
+  if (!draft) return res.status(400).json({ error: "Λείπει το λεξικό." });
+  if (lexiconPreviewRunning) return res.status(409).json({ error: "Τρέχει ήδη μια προεπισκόπηση. Δοκίμασε σε λίγα δευτερόλεπτα." });
+  lexiconPreviewRunning = true;
+  try {
+    const categoryNames = new Set(ALL_PROGRAMS.flatMap((p) => [p.primary_area, ...(p.areas_of_study || [])]).filter(Boolean));
+    const result = await previewLexicon({
+      programsAll: ALL_PROGRAMS, concepts: CONCEPTS, fixture: RANKING_FIXTURE || {},
+      current: lexiconStore.current(), candidate: draft, categoryNames,
+    });
+    res.json({ ...result, base_version: lexiconVersion() });
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  } finally { lexiconPreviewRunning = false; }
+});
+// Saves the draft: validated, previous version backed up, live at once. base_version must be the
+// version the editor started from, so two people cannot silently overwrite each other.
+app.post("/api/admin/lexicon/save", adminLimiter, checkAdminToken, jsonLexicon, (req, res) => {
+  const { lexicon, base_version, confirm } = req.body || {};
+  if (confirm !== true) return res.status(400).json({ error: "Χρειάζεται ρητή επιβεβαίωση." });
+  if (!lexicon) return res.status(400).json({ error: "Λείπει το λεξικό." });
+  if (base_version !== lexiconVersion()) return res.status(409).json({ error: "Το λεξικό άλλαξε στο μεταξύ (από άλλον χρήστη ή επαναφορά). Φόρτωσε ξανά τη σελίδα και ξαναδοκίμασε." });
+  try {
+    const counts = lexiconStore.save(lexicon, { reason: "before-save" });
+    EkpaSearch.search(PROGRAMS, CONCEPTS, "warmup", 1);
+    res.json({ ok: true, counts, version: lexiconVersion(), backups: lexiconStore.listBackups().length });
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
+});
+app.post("/api/admin/lexicon/rollback", adminLimiter, checkAdminToken, jsonLexicon, (req, res) => {
+  try {
+    const file = lexiconStore.rollback(req.body && req.body.file);
+    EkpaSearch.search(PROGRAMS, CONCEPTS, "warmup", 1);
+    res.json({ ok: true, restored_from: file, version: lexiconVersion(), backups: lexiconStore.listBackups().length });
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
 });
 // Everything EKPA edits, in one file: lexicon, taxonomy and the full catalog (also hidden programs).
 app.get("/api/admin/export", adminLimiter, checkAdminToken, (req, res) => {

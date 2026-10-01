@@ -70,6 +70,12 @@ details.change-list ul{margin:8px 0 4px 18px;padding:0;font-size:13px}
 .ranking-q{margin:8px 0 2px;font-weight:bold;font-size:13.5px}
 .ranking-q small{font-weight:normal;color:var(--muted)}
 .plus{color:var(--green)}.minus{color:var(--red)}
+.lex-input,.lex-select{border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-size:13px;width:100%;max-width:560px;background:#fff}
+.lex-label{font-size:12px;font-weight:bold;color:var(--muted);text-transform:uppercase;margin:10px 0 4px}
+.lex-results{display:flex;flex-direction:column;gap:4px;margin-top:6px;max-width:560px}
+.lex-result{border:1px solid var(--border);background:#fafcff;border-radius:8px;padding:7px 10px;text-align:left;cursor:pointer;font-size:13px}
+.lex-result:hover{background:#eef4ff}
+.lex-check{display:block;font-size:13px;margin:10px 0}
 </style>
 </head>
 <body>
@@ -97,6 +103,7 @@ details.change-list ul{margin:8px 0 4px 18px;padding:0;font-size:13px}
     <button class="tab-btn active" id="tabBtnTaxonomy" type="button">🏷️ Taxonomy</button>
     <button class="tab-btn" id="tabBtnAnalytics" type="button">📊 Analytics</button>
     <button class="tab-btn" id="tabBtnCatalog" type="button">📚 Κατάλογος</button>
+    <button class="tab-btn" id="tabBtnLexicon" type="button">📖 Λεξικό</button>
   </div>
 
   <div id="tab-taxonomy">
@@ -132,6 +139,8 @@ details.change-list ul{margin:8px 0 4px 18px;padding:0;font-size:13px}
       </div>
     </section>
   </div>
+
+  <div id="tab-lexicon" style="display:none"><div id="lexRoot"></div></div>
 
   <div id="tab-catalog" style="display:none">
     <section class="panel">
@@ -173,6 +182,7 @@ const TABS = [
   ["tabBtnTaxonomy", "tab-taxonomy"],
   ["tabBtnAnalytics", "tab-analytics"],
   ["tabBtnCatalog", "tab-catalog"],
+  ["tabBtnLexicon", "tab-lexicon"],
 ];
 TABS.forEach(([btnId]) => {
   document.getElementById(btnId).addEventListener("click", () => {
@@ -182,6 +192,7 @@ TABS.forEach(([btnId]) => {
       document.getElementById(panel).style.display = on ? "" : "none";
     });
     if (btnId === "tabBtnCatalog" && adminToken) loadCatalog(true);
+    if (btnId === "tabBtnLexicon" && window.lexOnShow) window.lexOnShow();
   });
 });
 
@@ -296,6 +307,7 @@ document.getElementById("unlockBtn").addEventListener("click", () => {
   ["catalogCheckBtn", "catalogQuickCheckBtn", "catalogRefreshBtn", "exportBtn"].forEach((id) => { document.getElementById(id).disabled = false; });
   showStatus("Token αποθηκεύτηκε για αυτή τη σελίδα (όχι μόνιμα) — μπορείς να αποθηκεύσεις αλλαγές.", "ok");
   if (document.getElementById("tab-catalog").style.display !== "none") loadCatalog(true);
+  if (window.lexOnUnlock) window.lexOnUnlock();
 });
 
 // ---- Export of everything EKPA edits (lexicon, taxonomy, catalog) ----
@@ -660,5 +672,6 @@ document.getElementById("catalogRefreshBtn").addEventListener("click", () => loa
   }
 })();
 </script>
+<script src="admin-lexicon.js"></script>
 </body>
 </html>

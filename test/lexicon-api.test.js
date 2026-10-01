@@ -101,3 +101,61 @@ test("admin lexicon status and the full export need the admin token", async () =
     assert.ok(x.catalog.meta);
   } finally { await s.stop(); }
 });
+
+const post = (s, p, body, token = TOKEN) => fetch(s.base + p, { method: "POST", headers: { "Content-Type": "application/json", "x-admin-token": token }, body: JSON.stringify(body) });
+
+test("admin page flow: preview -> save -> live at once -> rollback, with a version check", async () => {
+  const dir = tmp();
+  const s = await startServer(dir);
+  try {
+    const st0 = await (await s.admin("/api/admin/lexicon")).json();
+    assert.ok(st0.version);
+    const draft = clone(st0.lexicon); draft.audience_categories[0].words.push("δασκάλων");
+
+    // token needed
+    assert.equal((await post(s, "/api/admin/lexicon/preview", { lexicon: draft }, "wrong")).status, 401);
+    // a draft that is not valid is refused
+    const bad = clone(draft); bad.stopwords.push("ναυτικός");
+    const rb = await post(s, "/api/admin/lexicon/preview", { lexicon: bad });
+    assert.equal(rb.status, 400);
+    assert.match((await rb.json()).error, /Μη έγκυρο λεξικό/);
+
+    // preview does not change what visitors get
+    const pv = await post(s, "/api/admin/lexicon/preview", { lexicon: draft });
+    assert.equal(pv.status, 200);
+    const pvj = await pv.json();
+    assert.equal(pvj.changes.length, 1);
+    assert.equal(pvj.base_version, st0.version);
+    assert.equal(await count(s, "δασκάλων"), 0, "not live yet");
+
+    // saving needs explicit confirmation and the version the editor started from
+    assert.equal((await post(s, "/api/admin/lexicon/save", { lexicon: draft, base_version: st0.version })).status, 400);
+    assert.equal((await post(s, "/api/admin/lexicon/save", { lexicon: draft, base_version: "stale", confirm: true })).status, 409);
+    const ok = await post(s, "/api/admin/lexicon/save", { lexicon: draft, base_version: st0.version, confirm: true });
+    assert.equal(ok.status, 200);
+    const okj = await ok.json();
+    assert.notEqual(okj.version, st0.version);
+    assert.equal(okj.backups, 1);
+    assert.ok((await count(s, "δασκάλων")) > 50, "live at once, no restart");
+    assert.ok(JSON.parse(fs.readFileSync(path.join(dir, "lexicon.json"), "utf8")).audience_categories[0].words.includes("δασκάλων"));
+
+    // a second editor holding the old version cannot overwrite
+    assert.equal((await post(s, "/api/admin/lexicon/save", { lexicon: st0.lexicon, base_version: st0.version, confirm: true })).status, 409);
+
+    const rr = await post(s, "/api/admin/lexicon/rollback", {});
+    assert.equal(rr.status, 200);
+    assert.equal(await count(s, "δασκάλων"), 0, "rolled back");
+  } finally { await s.stop(); }
+});
+
+test("the saved lexicon survives a restart", async () => {
+  const dir = tmp();
+  let s = await startServer(dir);
+  try {
+    const st = await (await s.admin("/api/admin/lexicon")).json();
+    const draft = clone(st.lexicon); draft.audience_categories[0].words.push("δασκάλων");
+    assert.equal((await post(s, "/api/admin/lexicon/save", { lexicon: draft, base_version: st.version, confirm: true })).status, 200);
+  } finally { await s.stop(); }
+  s = await startServer(dir);
+  try { assert.ok((await count(s, "δασκάλων")) > 50); } finally { await s.stop(); }
+});
