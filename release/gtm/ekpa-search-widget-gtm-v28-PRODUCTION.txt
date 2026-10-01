@@ -1,0 +1,1200 @@
+<script>
+/**
+ * EKPA Smart Search Widget - GTM/Custom HTML version (v28, 2026-10-01)
+ * GA4 ID: G-ZL8304SEHG (Elearning - GA4)
+ * GTM: GTM-TZJNFCW
+ *
+ * BACKEND_URL is hardcoded below (see "Changes v9"). To point this widget at
+ * a different backend later, edit the BACKEND_URL line directly in this
+ * script and re-save the tag - do not reference a GTM Variable by its double
+ * mustache-brace token for it, see the note below.
+ *
+ * Changes v28 (2026-10-01):
+ *  - Works together with the optional one-line hold in the website head
+ *    (release/site-head/). When that snippet put class "sf-hold" on the html element, this
+ *    widget removes it as soon as it has taken over the result area (or failed
+ *    and the website's own list must come back). Without the snippet nothing
+ *    changes compared to v27.
+ *
+ * Changes v27 (2026-10-01):
+ *  - No more flash of the website's own results on /search?q=... . The widget
+ *    used to hide them only AFTER the backend answered, so visitors saw the
+ *    site's list first. Now, as soon as the tag runs, a small stylesheet hides
+ *    the native result list and shows "Loading results" until our list is
+ *    ready. It is removed (native list shown again) if the backend fails, and
+ *    after 6 seconds at the latest, so a visitor is never left with a blank page.
+ *  - What the widget cannot remove: the time GTM itself needs to load. For the
+ *    earliest possible start set the tag trigger to "Initialization - All Pages".
+ *  - No change to search requests, ranking, analytics or click tracking.
+ *
+ * Changes v26 (2026-10-01):
+ *  - Result cards show EVERY category of a program ("Κατευθύνσεις: A · B · C"),
+ *    each linking to its real page on elearningekpa.gr. The links now come from
+ *    the backend (p.category_links, official URLs from /categories). v25 built
+ *    the URL itself by transliterating the name, which pointed to pages that do
+ *    not exist for 23 of 56 categories (e.g. /categories/ugeia instead of
+ *    /categories/ygeia) - 371 of 693 programs had a broken "Κατεύθυνση" link.
+ *    With an older backend (no category_links) the primary category is shown
+ *    as plain text, never as a broken link.
+ *  - "Σχετικά Προγράμματα": up to 8 (was 3), still active links.
+ *  - No change to search requests, ranking, analytics or click tracking.
+ *
+ * Changes v22 (routing decision, finally resolved):
+ *  - v21 confirmed the filler-word approach itself works (capture-phase
+ *    fix), but testing then showed a different generic word ("\u03b3\u03b9\u03b1") that
+ *    was not on the list caused the exact same zero-results problem on
+ *    Symfony's own /search page - proving the word-list approach can never
+ *    fully close, because Symfony needs every single typed word to match
+ *    and Greek has dozens of generic connector words. Decision (agreed):
+ *    stop patching Symfony's page word by word, and instead send Enter /
+ *    the search-icon click to our own SmartFinder results page, which
+ *    already resolves these exact queries correctly via concept expansion.
+ *  - Requires a matching backend change (separate from this file): the
+ *    results page (public/index.html in the search-ekpa repo) now reads a
+ *    "?q=" URL param on load, prefills the box and runs the query - so
+ *    RESULTS_PAGE_URL + "?q=..." lands the user straight on real results.
+ *  - Deliberately left alone: Enter pressed while a suggestion is
+ *    highlighted in our own dropdown still lets typeahead.js's own handler
+ *    run and go straight to that program's page - see
+ *    hasHighlightedSuggestion() for how the two cases are told apart.
+ *  - v20/v21's filler-word cleanup and its submit-listener are kept as a
+ *    harmless fallback in case JS fails to run at all.
+ *
+ * Changes v21:
+ *  - v20's filler-word query cleanup did not work in live testing: the
+ *    query still reached Symfony's /search page with all words intact.
+ *    Root cause: the site's own JS handles Enter / the search-icon click
+ *    itself (most likely a direct navigation or form.submit() call), which
+ *    either never fires a native "submit" event or reads the input value
+ *    before our listener runs - a plain submit-event listener cannot win
+ *    that race. Fix: added document-level, capture-phase "keydown" (Enter)
+ *    and "click" listeners that clean the query the moment the key/click
+ *    happens, before the event ever reaches the input, its form, or any
+ *    button - capture-phase listeners on document always run first,
+ *    regardless of script load order. Also made the filler-word match
+ *    accent-insensitive (Unicode NFD normalize + strip combining marks) as
+ *    a second layer of robustness, in case of any accent-encoding mismatch.
+ *    The original submit-listener from v20 is kept as a harmless fallback.
+ *
+ * Changes v20:
+ *  - Confirmed live (v19 changelog entry) that Symfony's own /search page
+ *    requires every typed word to match (AND logic): a query with a
+ *    generic filler word plus the real term returned zero results there,
+ *    while the real term alone returned 7. Enter/icon-click still submits
+ *    to Symfony's page (the bigger routing decision is still open - this
+ *    is a narrow fix in the meantime, not a replacement for it). Added
+ *    FILLER_WORDS + stripFillerWords(): right before the form submits, a
+ *    short list of generic filler words (forms of "\u03c0\u03c1\u03cc\u03b3\u03c1\u03b1\u03bc\u03bc\u03b1") is
+ *    stripped from the query, whole-word and case-insensitive only (never
+ *    matches inside another word), so Symfony's own AND-matching has a
+ *    better chance of finding the real term. If stripping would leave an
+ *    empty query, the original text is submitted unchanged instead.
+ *
+ * Changes v19:
+ *  - Added the search-results page's own input (#qSearch, on
+ *    elearningekpa.gr/search?q=...) to SELECTORS - this page was missed in
+ *    the earlier round (v14/v15) that covered the other three inputs. Same
+ *    DOM pattern (twitter-typeahead/tt-input), no other code change needed.
+ *  - Noted separately (not fixed here, still open): a query that
+ *    SmartFinder answers correctly in the dropdown (a real, tested example
+ *    involving a Greek marketing-related phrase) can land on this very
+ *    /search page showing a "no results" message if the user presses
+ *    Enter, because that page's results come from the site's own Symfony
+ *    search, not from SmartFinder. This is concrete evidence for the
+ *    still-open Enter/icon routing decision (see earlier email to IT) -
+ *    left untouched pending that decision.
+ *
+ * Changes v18:
+ *  - Thumbnail size: the native site's own search-result image
+ *    (.smart-search-result__img) was confirmed via DevTools Computed/Layout
+ *    to be height:70px, width:auto (no fixed width, scales with the source
+ *    image's own aspect ratio). We do not have the exact rendered width, so
+ *    by explicit decision this was approximated rather than measured
+ *    further: width:100px, height:70px (roughly 4:3), replacing the earlier
+ *    64x64 square guess - closer to the native look without another
+ *    round-trip. Revisit if a later screenshot shows it should be exact.
+ *
+ * Changes v17:
+ *  - Corrected SITE_FONT size from 14px to 16px. The 14px value (v15) came
+ *    from the Computed panel on a course-listing card's body text - not the
+ *    right reference element. The user then inspected the *actual* native
+ *    search-suggestion title on the live site (.smart-search-result__title,
+ *    an h4) directly via DevTools' Font panel and confirmed Open Sans,
+ *    16px, weight 400 - that is the correct element to match since it is
+ *    the same context (a search dropdown title), so SITE_FONT is now 16px.
+ *    Family and weight were already correct.
+ *
+ * Changes v16:
+ *  - Compared side by side with the site's own native/pre-existing search
+ *    suggestions (screenshots): that one uses a bigger thumbnail and lets
+ *    long titles wrap onto multiple lines; ours used a small 40x40 image
+ *    and cut long titles short with an ellipsis on one line, which looked
+ *    inconsistent and (per feedback) cramped/"cut off" especially on
+ *    narrower screens. Changed the suggestion template: thumbnail is now
+ *    64x64 (was 40x40), the title no longer truncates - it wraps onto as
+ *    many lines as it needs (white-space:normal instead of nowrap+
+ *    ellipsis), and the row is top-aligned (align-items:flex-start instead
+ *    of center) so a multi-line title sits correctly next to the image
+ *    instead of being vertically centered against it. Row padding
+ *    increased slightly (4px to 8px) to give the now-taller rows breathing
+ *    room. No change to data or to the already-fixed left alignment.
+ *
+ * Changes v15:
+ *  - Added the desktop top-nav search input (#qNav) to SELECTORS - confirmed
+ *    via DOM inspection to be a fourth, separate input from #qNavMobile
+ *    (same twitter-typeahead/tt-input pattern), visible in the black top
+ *    bar on desktop. All four inputs (#qHeroFront, #qNav, #qNavMobile,
+ *    #qAside) are now enhanced.
+ *  - Added a visible hover/keyboard-cursor state on each suggestion row: a
+ *    light background highlight and cursor:pointer, via a small stylesheet
+ *    injected once into the page head targeting ".tt-suggestion:hover" and
+ *    ".tt-suggestion.tt-cursor" (the class typeahead.js itself toggles on
+ *    mouse-over and arrow-key navigation). Previously nothing indicated a
+ *    row was clickable.
+ *  - Matched typography to the site's own body text: font-family "Open
+ *    Sans"/Helvetica Neue/Helvetica/Arial/sans-serif, 14px, weight 400 (the
+ *    exact Computed values from the results-page course listing, supplied
+ *    via DevTools), applied to every suggestion row and the "no results"
+ *    message via the new SITE_FONT constant. The title row's font-weight
+ *    changed from 500 (bold-ish, our own earlier guess) to 400 to match.
+ *
+ * Changes v14:
+ *  - Added the header/mobile search input (#qNavMobile) and the results/
+ *    category-page sidebar search input (#qAside) to SELECTORS, alongside
+ *    the homepage hero input (#qHeroFront). Confirmed via DOM inspection
+ *    (screenshots of the live markup) that both new inputs use the exact
+ *    same pattern already working for the hero input - wrapped in a
+ *    span.twitter-typeahead, input classed "search__query form-control
+ *    tt-input", same placeholder - so they already run typeahead.js and
+ *    need no other code change to get the same dropdown. Pressing Enter or
+ *    clicking the search icon on any of these inputs still submits the
+ *    existing form (action="/search") and goes to the normal Symfony
+ *    results page - that behavior is intentionally NOT changed here; it is
+ *    a separate, larger decision (see the accompanying note to IT/Antonis)
+ *    and was not part of this change.
+ *
+ * Changes v13:
+ *  - The host page ships its own pre-existing CSS for .tt-dataset/
+ *    .tt-suggestion (typeahead.js's own wrapper elements, not ours) that
+ *    centers text and adds large padding/margins around each suggestion -
+ *    confirmed live: results showed correct data but center-aligned with
+ *    large gaps between rows. styleMenu() now also resets text-align/
+ *    padding/margin inline on every .tt-dataset and .tt-suggestion element
+ *    inside the menu, on every typeahead:render/typeahead:open, the same
+ *    way it already did for the .tt-menu element itself in v6. Also added
+ *    text-align:left directly on the template's own outer row for extra
+ *    safety. No change to what data is shown, only layout.
+ *
+ * Changes v12:
+ *  - The title text in each typeahead suggestion (tryTypeahead's "suggestion"
+ *    template) had no explicit text color, unlike the price line next to it
+ *    which does (color:#a15c00). Confirmed live: results were rendering with
+ *    real data (image + price visible) but the title was invisible - almost
+ *    certainly inheriting a light/transparent color from the host page's own
+ *    CSS for the search area. Added an explicit color:#17212b (same dark
+ *    color already used elsewhere in this file) to the title div so it no
+ *    longer depends on inheriting the right color from the page.
+ *
+ * Changes v11:
+ *  - Corrected the hardcoded BACKEND_URL. v9 hardcoded it using the URL
+ *    from this file's own old setup-documentation text (a Railway example
+ *    URL), which is NOT the value the "EKPA Backend URL" GTM Variable
+ *    actually held in this workspace - that had already been confirmed
+ *    earlier (via a console.log on the resolved value) to be
+ *    https://smartfinder.elearningekpa.gr, IT's own backend. This is very
+ *    likely why v10 loaded and rendered the dropdown correctly but returned
+ *    zero results for every query - it was calling the wrong / an inactive
+ *    backend. No other change from v10.
+ *
+ * Changes v10 (found by GTM's "Validate Container" check, separate from the
+ * live editor's save-time format check that v9 fixed):
+ *  - styleMenu() inside tryTypeahead() was declared as a named function
+ *    directly inside a try block. GTM's JS compiler targets ES5, and a
+ *    function declaration nested inside a block (if/for/while/try, as
+ *    opposed to directly inside another function or the top level) is only
+ *    valid from ES2015 onward, so the compiler rejected it with "This
+ *    language feature is only supported for ECMASCRIPT_2015 mode or
+ *    better: block-scoped function declaration." Fixed by writing it as
+ *    var styleMenu = function () {...}; instead - a function expression
+ *    assigned to a var is valid anywhere in ES5. No behavior change.
+ *
+ * Changes v9 (root cause of every earlier "The value is not properly
+ * formatted." save failure, finally isolated):
+ *  - The GTM Custom HTML tag editor's client-side format check rejects the
+ *    tag whenever it contains a GTM Variable reference (the double
+ *    mustache-brace "EKPA Backend URL" token) - confirmed empirically: a
+ *    script that is otherwise byte-for-byte identical passes as soon as
+ *    that token is replaced with the literal URL, and fails again as soon
+ *    as the token is put back. This has nothing to do with file size, Greek
+ *    text, or angle brackets - all of which were ruled out first by testing
+ *    each one independently. BACKEND_URL is now hardcoded as a plain string
+ *    instead of coming from the "EKPA Backend URL" GTM Variable.
+ *  - Trade-off: changing the backend URL now requires editing this script
+ *    and re-saving the tag, instead of just editing the GTM Variable. Given
+ *    the GTM Variable approach cannot be saved at all in this account/
+ *    workspace, this is the only working option.
+ *
+ * Changes v8: removed every literal angle-bracket character from the file
+ * (turned out not to be the actual cause, but kept - it is harmless and
+ * keeps HTML template strings unambiguous). Comparisons that need a less-than/greater-than test
+ * as real JS syntax go through ltFn()/gtFn() helpers instead of the bare
+ * operators.
+ *
+ * Changes v7: removed every literal Greek/non-ASCII character (also not the
+ * actual cause, but kept for the same reason - harmless, avoids relying on
+ * the editor to preserve non-ASCII bytes on paste). The one user-facing
+ * Greek string is written as a \u-escaped literal in "notFound" below - it
+ * still renders as normal Greek text in the browser.
+ *
+ * Changes v6: dropdown menu (.tt-menu) now gets explicit inline styling
+ * (background/border/shadow) applied directly via JS on render/open, so it
+ * renders correctly regardless of the host page's own CSS.
+ *
+ * Written in ES5 on purpose (compatibility with GTM Custom HTML's JS compiler).
+ */
+(function () {
+  "use strict";
+  var BACKEND_URL = "https://smartfinder.elearningekpa.gr"; // hardcoded - see header note on GTM Variable bug
+  var GA4_ID      = "G-ZL8304SEHG"; // Elearning - GA4
+  var SELECTORS   = ["#qHeroFront", "#qNav", "#qNavMobile", "#qAside", "#qSearch"];  // confirmed against the real DOM (v14: header/mobile + category-aside; v15: desktop top-nav; v19: /search results page)
+  // Matches the site's own body text (from DevTools Computed on the results-page course listing): Open Sans stack, 14px, weight 400.
+  var SITE_FONT   = "font-family:'Open Sans','Helvetica Neue',Helvetica,Arial,sans-serif;font-size:16px;font-weight:400;";
+  var MIN_CHARS   = 2;
+  var DEBOUNCE_MS = 220;
+  var MAX_RESULTS = 6;
+  var RELATED_MAX = 8; // v26: related programs shown per result card (was 3)
+  BACKEND_URL = String(BACKEND_URL || "").replace(/\/+$/, "");
+  var EARLY_ID = "ekpa-sf-early-hide";
+  function earlyShow() {
+    try {
+      var st = document.getElementById(EARLY_ID);
+      if (st && st.parentNode) st.parentNode.removeChild(st);
+      var de = document.documentElement;
+      if (de && de.className && de.className.indexOf("sf-hold") !== -1) {
+        de.className = de.className.replace(/(^|\s)sf-hold(\s|$)/g, " ").replace(/^\s+|\s+$/g, "");
+      }
+    } catch (e) {}
+  }
+  // /search?q=... : hide the website's own result list right away (before the
+  // backend answers) so it never flashes. Always undone by earlyShow().
+  function earlyHide() {
+    try {
+      if (window.location.pathname !== "/search") return;
+      var m = /(?:^|[?&])q=([^&]*)/.exec(window.location.search || "");
+      if (!m) return;
+      var q = decodeURIComponent(m[1].replace(/\+/g, " ")).trim();
+      if (ltFn(q.length, MIN_CHARS)) return;
+      if (document.getElementById(EARLY_ID)) return;
+      var st = document.createElement("style");
+      st.id = EARLY_ID;
+      st.textContent =
+        "main.content--search .container--search-results{display:none !important;}" +
+        ".search-overview__title,.search-overview__query,.search-overview__tagline{visibility:hidden !important;}" +
+        "main.content--search .section--search-header:after{content:\"\u03a6\u03cc\u03c1\u03c4\u03c9\u03c3\u03b7 \u03b1\u03c0\u03bf\u03c4\u03b5\u03bb\u03b5\u03c3\u03bc\u03ac\u03c4\u03c9\u03bd\u2026\";display:block;text-align:center;color:#667085;padding:32px 0;}";
+      (document.head || document.documentElement).appendChild(st);
+      setTimeout(earlyShow, 6000);
+    } catch (e) {}
+  }
+  earlyHide();
+  function ga4(eventName, params) {
+    try {
+      if (typeof window.gtag === "function") {
+        window.gtag("event", eventName, Object.assign({ send_to: GA4_ID }, params));
+      } else {
+        window.dataLayer = window.dataLayer || [];
+        window.dataLayer.push(Object.assign({ event: "ekpa_" + eventName }, params));
+      }
+    } catch (e) {}
+  }
+  function esc(v) {
+    return String(v == null ? "" : v)
+      .replace(/&/g, "&amp;").replace(/\x3C/g, "&lt;")
+      .replace(/\x3E/g, "&gt;").replace(/"/g, "&quot;");
+  }
+  function ltFn(a, b) { return Math.sign(a - b) === -1; }
+  function gtFn(a, b) { return Math.sign(a - b) === 1; }
+  function injectHoverStyle() {
+    if (document.getElementById("ekpa-tt-hover-style")) return; // once per page
+    try {
+      var styleTag = document.createElement("style");
+      styleTag.id = "ekpa-tt-hover-style";
+      styleTag.type = "text/css";
+      var css = ".tt-suggestion:hover, .tt-suggestion.tt-cursor { background-color: #f5f7fa !important; cursor: pointer !important; }";
+      if (styleTag.styleSheet) { styleTag.styleSheet.cssText = css; } else { styleTag.appendChild(document.createTextNode(css)); }
+      (document.head || document.documentElement).appendChild(styleTag);
+    } catch (e) {}
+  }
+  function debounce(fn, ms) {
+    var t;
+    return function () {
+      var args = arguments, ctx = this;
+      clearTimeout(t);
+      t = setTimeout(function () { fn.apply(ctx, args); }, ms);
+    };
+  }
+  function programKey(p) {
+    return p ? (p.slug || (p.id != null ? String(p.id) : "")) : "";
+  }
+  var BACKEND_READY = /^https?:\/\//.test(BACKEND_URL);
+  if (!BACKEND_READY) {
+    try { console.warn("[EKPA widget] BACKEND_URL is not configured correctly. Widget is inactive."); } catch (e) {}
+  }
+  var requestSeq = 0;
+  var currentController = null;
+  function fetchResults(query, cb) {
+    if (!BACKEND_READY) { cb([], true); return; }
+    var mySeq = ++requestSeq;
+    if (currentController) { try { currentController.abort(); } catch (e) {} }
+    currentController = typeof AbortController === "function" ? new AbortController() : null;
+    fetch(BACKEND_URL + "/api/search?q=" + encodeURIComponent(query) + "&limit=" + MAX_RESULTS + "&fields=compact", currentController ? { signal: currentController.signal } : undefined)
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (data) {
+        if (mySeq !== requestSeq) return; // stale response
+        cb(Array.isArray(data) ? data : [], !Array.isArray(data));
+      })
+      .catch(function () {
+        if (mySeq !== requestSeq) return;
+        cb([], true);
+      });
+  }
+  function trackClick(key, q) {
+    if (!BACKEND_READY || !key) return;
+    var url = BACKEND_URL + "/api/track-click";
+    var payload = JSON.stringify({ query: q, program_id: key });
+    try {
+      if (navigator.sendBeacon && navigator.sendBeacon(url, new Blob([payload], { type: "text/plain;charset=UTF-8" }))) return;
+      fetch(url, { method: "POST", headers: { "Content-Type": "text/plain;charset=UTF-8" }, body: payload, keepalive: true })["catch"](function () {});
+    } catch (e) {}
+  }
+  var lastNoResultsQuery = "";
+  function reportNoResults(query) {
+    if (query === lastNoResultsQuery) return; // once per query
+    lastNoResultsQuery = query;
+    ga4("search_no_results", { search_term: query });
+  }
+  function reportSelect(p, query) {
+    ga4("select_content", {
+      content_type: "course",
+      item_id: p.slug || p.url,
+      content_id: p.title,
+      search_term: query,
+      transport_type: "beacon"
+    });
+    trackClick(programKey(p), query);
+  }
+  function tryTypeahead(input) {
+    var $ = window.jQuery;
+    if (!$ || !$.fn || !$.fn.typeahead) return false;
+    var $input = $(input);
+    try { $input.typeahead("destroy"); } catch (e) {}
+    try {
+      var pendingTimer = null;
+      $input.typeahead(
+        { hint: false, highlight: true, minLength: MIN_CHARS },
+        {
+          name: "ekpa-programs",
+          limit: 100,
+          source: function (query, syncResults, asyncResults) {
+            clearTimeout(pendingTimer);
+            pendingTimer = setTimeout(function () {
+              fetchResults(query, function (data, failed) {
+                if (!data.length && !failed) reportNoResults(query);
+                asyncResults(data.slice(0, MAX_RESULTS));
+              });
+            }, DEBOUNCE_MS);
+          },
+          display: function (item) { return item.title; },
+          templates: {
+            suggestion: function (item) {
+              return (
+                '\x3Cdiv style="' + SITE_FONT + 'display:flex;gap:10px;align-items:flex-start;padding:8px 0;text-align:left"\x3E' +
+                '\x3Cimg src="' + esc(item.image_url || "") + '" alt="" style="width:100px;height:70px;object-fit:cover;border-radius:6px;background:#eef2f6;flex-shrink:0" onerror="this.style.visibility=\'hidden\'"\x3E' +
+                '\x3Cdiv style="flex:1;min-width:0"\x3E' +
+                '\x3Cdiv style="color:#17212b;white-space:normal;word-break:break-word;line-height:1.35"\x3E' + esc(item.title) + "\x3C/div\x3E" +
+
+                "\x3C/div\x3E\x3C/div\x3E"
+              );
+            },
+            notFound: '\x3Cdiv style="' + SITE_FONT + 'padding:10px 14px;color:#667085;font-size:13px"\x3E\u0394\u03b5\u03bd \u03b2\u03c1\u03ad\u03b8\u03b7\u03ba\u03b1\u03bd \u03b1\u03c0\u03bf\u03c4\u03b5\u03bb\u03ad\u03c3\u03bc\u03b1\u03c4\u03b1\x3C/div\x3E'
+          }
+        }
+      );
+      var typedQuery = "";
+      $input.off("input.ekpa").on("input.ekpa", function () { typedQuery = input.value; });
+      $input.off("typeahead:select.ekpa").on("typeahead:select.ekpa", function (ev, item) {
+        if (!item) return;
+        reportSelect(item, typedQuery || input.value);
+        if (item.url) window.location.href = item.url;
+      });
+      var menuEl = $input.parent().find(".tt-menu")[0];
+      var styleMenu = function () {
+        if (!menuEl) return;
+        menuEl.style.cssText = menuEl.style.cssText +
+          ";background:#fff;border:1px solid #dfe5ec;border-radius:10px;" +
+          "box-shadow:0 12px 30px rgba(16,24,40,.15);z-index:9999;" +
+          "max-height:360px;overflow:auto";
+        // The host page ships its own CSS for .tt-dataset/.tt-suggestion (from
+        // before this widget existed) that centers text and adds large
+        // padding/margins. Override it inline on every render so our own
+        // template's layout (left-aligned, compact spacing) always wins,
+        // regardless of what the page's stylesheet does.
+        var datasetEls = menuEl.querySelectorAll(".tt-dataset");
+        for (var di = 0; ltFn(di, datasetEls.length); di++) {
+          datasetEls[di].style.cssText = datasetEls[di].style.cssText + ";padding:0;margin:0;";
+        }
+        var suggestionEls = menuEl.querySelectorAll(".tt-suggestion");
+        for (var si = 0; ltFn(si, suggestionEls.length); si++) {
+          suggestionEls[si].style.cssText = suggestionEls[si].style.cssText +
+            ";text-align:left;padding:0;margin:0;";
+        }
+      };
+      if (menuEl) {
+        styleMenu();
+        $input.on("typeahead:render.ekpa", styleMenu);
+        $input.on("typeahead:open.ekpa", styleMenu);
+      }
+      return true;
+    } catch (e) { return false; }
+  }
+  function buildDropdown(input) {
+    var wrap = document.createElement("div");
+    wrap.style.position = "relative";
+    input.parentNode.insertBefore(wrap, input);
+    wrap.appendChild(input);
+    var dd = document.createElement("div");
+    dd.style.cssText =
+      "position:absolute;top:100%;left:0;right:0;background:#fff;" +
+      "border:1px solid #dfe5ec;border-radius:10px;" +
+      "box-shadow:0 12px 30px rgba(16,24,40,.15);margin-top:6px;" +
+      "z-index:9999;max-height:360px;overflow:auto;display:none;text-align:left";
+    wrap.appendChild(dd);
+    return dd;
+  }
+  function renderDropdown(dd, results, query, failed) {
+    if (!results.length) {
+      dd.style.display = "none";
+      if (!failed) reportNoResults(query); // network error != "0 results"
+      return;
+    }
+    var shown = results.slice(0, MAX_RESULTS);
+    dd.innerHTML = shown.map(function (p, i) {
+      return (
+        '\x3Ca href="' + esc(p.url) + '" data-idx="' + i + '"' +
+        ' style="display:flex;gap:10px;padding:10px 12px;text-decoration:none;color:#17212b;border-bottom:1px solid #f0f2f5;align-items:center"\x3E' +
+        '\x3Cimg src="' + esc(p.image_url || "") + '" alt="" style="width:40px;height:40px;object-fit:cover;border-radius:6px;background:#eef2f6;flex-shrink:0" onerror="this.style.visibility=\'hidden\'"\x3E' +
+        '\x3Cspan style="flex:1;font-size:14px"\x3E' + esc(p.title) + "\x3C/span\x3E" +
+
+        "\x3C/a\x3E"
+      );
+    }).join("");
+    dd.style.display = "block";
+    var links = dd.querySelectorAll("a");
+    for (var i = 0; ltFn(i, links.length); i++) {
+      links[i].addEventListener("click", function () {
+        var p = shown[Number(this.getAttribute("data-idx"))];
+        if (p) reportSelect(p, query);
+      });
+    }
+  }
+  function enhanceStandalone(input) {
+    var dd = buildDropdown(input);
+    var onInput = debounce(function () {
+      var q = input.value.trim();
+      if (ltFn(q.length, MIN_CHARS)) { requestSeq++; dd.style.display = "none"; return; }
+      fetchResults(q, function (results, failed) {
+        if (input.value.trim() !== q) return; // user already typed something else
+        renderDropdown(dd, results, q, failed);
+      });
+    }, DEBOUNCE_MS);
+    input.addEventListener("input", onInput);
+    document.addEventListener("click", function (e) {
+      if (!dd.contains(e.target) && e.target !== input) dd.style.display = "none";
+    });
+    input.addEventListener("keydown", function (e) {
+      if (e.key === "Escape") dd.style.display = "none";
+    });
+  }
+  function attachSearchAnalytics(input) {
+    var lastFired = ""; // prevents a duplicate "search" event for the exact same query
+    function fireIfNew(q) {
+      q = (q || "").trim();
+      if (ltFn(q.length, MIN_CHARS) || q === lastFired) return;
+      lastFired = q;
+      ga4("search", { search_term: q });
+    }
+    var debouncedFire = debounce(function () { fireIfNew(input.value); }, 600);
+    input.addEventListener("input", debouncedFire);
+    var form = input.closest ? input.closest("form") : null;
+    if (form) {
+      form.addEventListener("submit", function () { fireIfNew(input.value); });
+    }
+  }
+  // Symfony's own /search page appears to require every typed word to match
+  // (AND logic) - confirmed live: "\u03c0\u03c1\u03bf\u03b3\u03c1\u03ac\u03bc\u03bc\u03b1\u03c4\u03b1 \u03bc\u03ac\u03c1\u03ba\u03b5\u03c4\u03b9\u03bd\u03b3\u03ba" (a generic word plus the real
+  // term) returns zero results there, while the bare term alone returns 7.
+  // SmartFinder itself does not have this problem (concept expansion), but
+  // Enter/icon-click still submits to Symfony's own page (see changelog,
+  // routing to SmartFinder is a separate, larger decision). As a narrow,
+  // low-risk improvement in the meantime: strip a short list of generic
+  // filler words from the query right before the form submits, so Symfony's
+  // AND-matching has a better chance of finding the real term. Whole-word
+  // match only (never a substring inside another word), case-insensitive
+  // and accent-insensitive (see stripAccents below); if stripping would
+  // empty the query, the original is submitted instead.
+  //
+  // v21 fix: v20 relied only on a "submit" event listener attached to the
+  // form. Live testing showed the query still reached Symfony unstripped.
+  // Root cause: the site's own JS intercepts Enter / the search-icon click
+  // and navigates on its own (most likely calling something like
+  // window.location or form.submit() directly), which either never fires a
+  // native "submit" event at all, or reads the input's value before our
+  // listener gets a turn. A submit-event listener cannot reliably win that
+  // race. Fix: also clean the input's value from document-level, CAPTURE
+  // PHASE "keydown" (Enter) and "click" listeners. Capture-phase listeners
+  // on document always run before any listener attached directly to the
+  // input or its form/button - regardless of script load order - because
+  // capture travels top-down from document to the target before the event
+  // ever reaches it. That guarantees our cleanup runs first, no matter what
+  // the site's own code does afterward. The original submit-listener is
+  // kept as a harmless fallback for the plain case (native form submit).
+  var FILLER_WORDS = [
+    "\u03c0\u03c1\u03cc\u03b3\u03c1\u03b1\u03bc\u03bc\u03b1",
+    "\u03c0\u03c1\u03bf\u03b3\u03c1\u03ac\u03bc\u03bc\u03b1\u03c4\u03b1",
+    "\u03c0\u03c1\u03bf\u03b3\u03c1\u03ac\u03bc\u03bc\u03b1\u03c4\u03bf\u03c2",
+    "\u03c0\u03c1\u03bf\u03b3\u03c1\u03b1\u03bc\u03bc\u03ac\u03c4\u03c9\u03bd"
+  ];
+  function stripAccents(s) {
+    try {
+      return String(s || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    } catch (e) {
+      return String(s || "");
+    }
+  }
+  function normalizeWord(w) {
+    return stripAccents(String(w || "").toLowerCase());
+  }
+  function stripFillerWords(q) {
+    var words = String(q || "").split(/\s+/).filter(function (w) { return gtFn(w.length, 0); });
+    var kept = [];
+    for (var i = 0; ltFn(i, words.length); i++) {
+      var w = words[i], isFiller = false, normW = normalizeWord(w);
+      for (var j = 0; ltFn(j, FILLER_WORDS.length); j++) {
+        if (normW === normalizeWord(FILLER_WORDS[j])) { isFiller = true; break; }
+      }
+      if (!isFiller) kept.push(w);
+    }
+    var cleaned = kept.join(" ");
+    return cleaned.length ? cleaned : q;
+  }
+  function cleanInputValue(input) {
+    try {
+      var cleaned = stripFillerWords(input.value);
+      if (cleaned !== input.value) input.value = cleaned;
+    } catch (e) {}
+  }
+  function findEnhancedInputNear(el) {
+    try {
+      if (!el) return null;
+      if (el.getAttribute && el.getAttribute("data-ekpa-enhanced")) return el;
+      var form = el.closest ? el.closest("form") : null;
+      if (form) return form.querySelector("[data-ekpa-enhanced]");
+    } catch (e) {}
+    return null;
+  }
+  function attachQueryCleanup(input) {
+    var form = input.closest ? input.closest("form") : null;
+    if (!form || form.getAttribute("data-ekpa-cleanup")) return;
+    form.setAttribute("data-ekpa-cleanup", "1");
+    form.addEventListener("submit", function () { cleanInputValue(input); });
+  }
+  // v23 TEST: keep the visitor inside the EKPA website.
+  // Enter / search-icon renders SmartFinder results into the existing EKPA
+  // /search page instead of navigating to the standalone Railway UI.
+  // Railway is API-only. The result markup intentionally reuses the site's
+  // existing Bootstrap/EKPA classes and adds no standalone-page stylesheet.
+  function resultDescription(p) {
+    return p.description_full || p.description_for_matching || "";
+  }
+
+  function greekSlug(s) {
+    var map = {
+      "\u03b1":"a","\u03b2":"b","\u03b3":"g","\u03b4":"d","\u03b5":"e","\u03b6":"z","\u03b7":"i","\u03b8":"th",
+      "\u03b9":"i","\u03ba":"k","\u03bb":"l","\u03bc":"m","\u03bd":"n","\u03be":"x","\u03bf":"o","\u03c0":"p",
+      "\u03c1":"r","\u03c3":"s","\u03c2":"s","\u03c4":"t","\u03c5":"u","\u03c6":"f","\u03c7":"ch","\u03c8":"ps","\u03c9":"o"
+    };
+    var x = String(s || "").toLowerCase();
+    try { x = x.normalize("NFD").replace(/[\u0300-\u036f]/g, ""); } catch (e) {}
+    x = x.replace(/[\u03b1-\u03c9]/g, function (c) { return map[c] || c; });
+    return x.replace(/&/g, " kai ").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+  }
+
+  function categoryUrl(name) {
+    return "/categories/" + greekSlug(name);
+  }
+
+  var programIndexPromise = null;
+  function getProgramIndex() {
+    if (programIndexPromise) return programIndexPromise;
+    programIndexPromise = fetch(BACKEND_URL + "/api/programs")
+      .then(function (r) { return r.ok ? r.json() : []; })
+      .then(function (programs) {
+        var byId = {};
+        for (var i = 0; ltFn(i, programs.length); i++) {
+          var p = programs[i];
+          if (p && p.id != null) byId[String(p.id)] = p;
+        }
+        return byId;
+      })
+      .catch(function () { return {}; });
+    return programIndexPromise;
+  }
+
+  function appendRelatedPrograms(textCol, p, programIndex) {
+    var ids = p.similar_program_ids || [];
+    if (!ids || !ids.length) return;
+
+    var related = [];
+    for (var i = 0; ltFn(i, ids.length) && ltFn(related.length, RELATED_MAX); i++) {
+      var rp = programIndex[String(ids[i])];
+      if (rp && rp.title && rp.url) related.push(rp);
+    }
+    if (!related.length) return;
+
+    var rel = document.createElement("p");
+    var label = document.createElement("strong");
+    label.textContent = "Σχετικά Προγράμματα: ";
+    rel.appendChild(label);
+
+    for (var j = 0; ltFn(j, related.length); j++) {
+      if (j > 0) rel.appendChild(document.createTextNode(" \u00b7 "));
+      var a = document.createElement("a");
+      a.href = related[j].url;
+      a.textContent = related[j].title;
+      rel.appendChild(a);
+    }
+    textCol.appendChild(rel);
+  }
+
+  // v26: every category of the program, each linking to its official page.
+  function appendCategoryLinks(textCol, p) {
+    var links = p.category_links || [];
+    var cat = document.createElement("p");
+    var catLabel = document.createElement("strong");
+    if (links.length) {
+      catLabel.textContent = gtFn(links.length, 1) ? "\u039a\u03b1\u03c4\u03b5\u03c5\u03b8\u03cd\u03bd\u03c3\u03b5\u03b9\u03c2: " : "\u039a\u03b1\u03c4\u03b5\u03cd\u03b8\u03c5\u03bd\u03c3\u03b7: ";
+      cat.appendChild(catLabel);
+      for (var i = 0; ltFn(i, links.length); i++) {
+        if (!links[i] || !links[i].url || !links[i].name) continue;
+        if (gtFn(cat.childNodes.length, 1)) cat.appendChild(document.createTextNode(" \u00b7 "));
+        var a = document.createElement("a");
+        a.href = links[i].url;
+        a.textContent = links[i].name;
+        cat.appendChild(a);
+      }
+      textCol.appendChild(cat);
+      return;
+    }
+    // Older backend without category_links: name only, never a guessed (possibly broken) link.
+    if (p.primary_area) {
+      catLabel.textContent = "\u039a\u03b1\u03c4\u03b5\u03cd\u03b8\u03c5\u03bd\u03c3\u03b7: ";
+      cat.appendChild(catLabel);
+      cat.appendChild(document.createTextNode(p.primary_area));
+      textCol.appendChild(cat);
+    }
+  }
+
+  function setNativeSearchMetaVisible(visible) {
+    var selectors = [
+      ".search-overview__title",
+      ".search-overview__query",
+      ".search-overview__tagline"
+    ];
+
+    for (var i = 0; ltFn(i, selectors.length); i++) {
+      var elements = document.querySelectorAll(selectors[i]);
+      for (var j = 0; ltFn(j, elements.length); j++) {
+        elements[j].style.visibility = visible ? "" : "hidden";
+      }
+    }
+  }
+
+  function ensureInPageStyles() {
+    if (document.getElementById("ekpa-smartfinder-v234-css")) return;
+    var style = document.createElement("style");
+    style.id = "ekpa-smartfinder-v234-css";
+    style.textContent =
+      "#ekpa-smartfinder-results{width:100%;max-width:100%;margin-top:28px;margin-bottom:40px;}" +
+      "#ekpa-smartfinder-results .sf-result{display:flex;gap:28px;padding:24px 0;border-bottom:1px solid rgba(0,0,0,.12);align-items:flex-start;}" +
+      "#ekpa-smartfinder-results .sf-image{flex:0 0 250px;max-width:250px;}" +
+      "#ekpa-smartfinder-results .sf-image img{display:block;width:100%;height:auto;max-height:175px;object-fit:cover;}" +
+      "#ekpa-smartfinder-results .sf-content{flex:1 1 auto;min-width:0;}" +
+      "#ekpa-smartfinder-results .sf-content h3{margin-top:0;}" +
+      "#ekpa-smartfinder-results .sf-content p{max-width:none;}" +
+      "@media(max-width:991px){" +
+        "#ekpa-smartfinder-results .sf-result{gap:20px;}" +
+        "#ekpa-smartfinder-results .sf-image{flex-basis:210px;max-width:210px;}" +
+      "}" +
+      "@media(max-width:767px){" +
+        "#ekpa-smartfinder-results .sf-result{display:block;padding:20px 0;}" +
+        "#ekpa-smartfinder-results .sf-image{max-width:none;width:100%;margin-bottom:16px;}" +
+        "#ekpa-smartfinder-results .sf-image img{width:100%;max-height:none;}" +
+        "#ekpa-smartfinder-results .sf-content{width:100%;}" +
+      "}";
+    document.head.appendChild(style);
+  }
+
+  function hideNativeWebsiteResults() {
+    var main = document.querySelector("main") || document.querySelector(".main");
+    if (!main) return;
+
+    var candidates = main.querySelectorAll("section, .row");
+    for (var i = 0; ltFn(i, candidates.length); i++) {
+      var block = candidates[i];
+      if (!block || block.id === "ekpa-smartfinder-results") continue;
+      if (block.querySelector("#ekpa-smartfinder-results")) continue;
+      if (block.querySelector("#qSearch, #qHeroFront, #qNav, #qNavMobile, #qAside")) continue;
+
+      var courseLinks = block.querySelectorAll('a[href*="/courses/"]');
+      if (courseLinks.length >= 2) {
+        block.setAttribute("data-smartfinder-native-hidden", "true");
+        block.style.display = "none";
+      }
+    }
+  }
+
+  function renderInEkpaSearchPage(query, results, programIndex, pagination, sortMode) {
+    ensureInPageStyles();
+    var main = document.querySelector("main") || document.querySelector(".main") || document.body;
+    var old = document.getElementById("ekpa-smartfinder-results");
+    if (old && old.parentNode) old.parentNode.removeChild(old);
+
+    var host = document.createElement("div");
+    host.id = "ekpa-smartfinder-results";
+    host.className = "container";
+    host.setAttribute("data-smartfinder-query", query);
+    host.setAttribute("data-smartfinder-sort", sortMode || "relevance");
+
+    var heading = document.createElement("h1");
+    heading.textContent = "Αποτελέσματα αναζήτησης";
+    heading.style.textAlign = "center";
+    host.appendChild(heading);
+
+    var summary = document.createElement("p");
+    summary.style.textAlign = "center";
+    var totalResults = pagination && pagination.total_results != null ?
+      pagination.total_results : results.length;
+    summary.textContent = totalResults ?
+      (totalResults + " αποτελέσματα για: " + query) :
+      ("Δεν βρέθηκαν αποτελέσματα για: " + query);
+    host.appendChild(summary);
+
+    var sortWrap = document.createElement("div");
+    sortWrap.className = "sf-sort-wrap";
+    sortWrap.style.cssText = "display:flex;justify-content:center;align-items:center;gap:8px;margin:18px 0 24px;flex-wrap:wrap;";
+
+    var sortLabel = document.createElement("label");
+    sortLabel.textContent = "Ταξινόμηση:";
+    sortLabel.setAttribute("for", "ekpa-smartfinder-sort");
+
+    var sortSelect = document.createElement("select");
+    sortSelect.id = "ekpa-smartfinder-sort";
+    sortSelect.className = "form-control";
+    sortSelect.style.cssText = "width:auto;max-width:100%;";
+
+    var relevanceOption = document.createElement("option");
+    relevanceOption.value = "relevance";
+    relevanceOption.textContent = "Σχετικότητα";
+
+    var priceOption = document.createElement("option");
+    priceOption.value = "price_asc";
+    priceOption.textContent = "Τιμή: χαμηλότερη προς υψηλότερη";
+
+    sortSelect.appendChild(relevanceOption);
+    sortSelect.appendChild(priceOption);
+    sortSelect.value = sortMode === "price_asc" ? "price_asc" : "relevance";
+
+    sortSelect.addEventListener("change", function () {
+      loadInPageResults(query, sortSelect.value);
+    });
+
+    sortWrap.appendChild(sortLabel);
+    sortWrap.appendChild(sortSelect);
+    host.appendChild(sortWrap);
+
+    for (var i = 0; ltFn(i, results.length); i++) {
+      var p = results[i];
+      var row = document.createElement("article");
+      row.className = "sf-result";
+      var rowKey = programKey(p);
+      if (rowKey) row.setAttribute("data-program-key", rowKey);
+
+      var imageCol = document.createElement("div");
+      imageCol.className = "sf-image";
+      if (p.image_url) {
+        var imgLink = document.createElement("a");
+        imgLink.href = p.url || "#";
+        var img = document.createElement("img");
+        img.src = p.image_url;
+        img.alt = p.title || "";
+        img.className = "img-responsive";
+        imgLink.appendChild(img);
+        imageCol.appendChild(imgLink);
+      }
+
+      var textCol = document.createElement("div");
+      textCol.className = "sf-content";
+
+      var h = document.createElement("h3");
+      var a = document.createElement("a");
+      a.href = p.url || "#";
+      a.textContent = p.title || "";
+      h.appendChild(a);
+      textCol.appendChild(h);
+
+      var desc = resultDescription(p);
+      if (desc) {
+        var d = document.createElement("p");
+        d.textContent = desc.length > 520 ? desc.slice(0, 517) + "..." : desc;
+        textCol.appendChild(d);
+      }
+
+      appendCategoryLinks(textCol, p);
+
+      appendRelatedPrograms(textCol, p, programIndex || {});
+
+      // Prices are intentionally hidden in the TEST results view until the
+      // current-cycle discount/price policy is available from an authoritative
+      // source. Showing the base price alone can be misleading.
+
+      row.appendChild(imageCol);
+      row.appendChild(textCol);
+      host.appendChild(row);
+    }
+
+    if (pagination && pagination.has_next) {
+      var moreWrap = document.createElement("div");
+      moreWrap.className = "sf-load-more-wrap";
+      moreWrap.style.cssText = "text-align:center;padding:28px 0;";
+
+      var moreButton = document.createElement("button");
+      moreButton.type = "button";
+      moreButton.className = "btn btn-primary sf-load-more";
+      moreButton.textContent = "Εμφάνιση περισσότερων";
+      moreButton.setAttribute("data-next-page", String(pagination.page + 1));
+
+      moreButton.addEventListener("click", function () {
+        loadMoreInPageResults(
+          host,
+          query,
+          Number(moreButton.getAttribute("data-next-page")),
+          programIndex || {},
+          moreWrap,
+          moreButton,
+          sortMode || "relevance"
+        );
+      });
+
+      moreWrap.appendChild(moreButton);
+      host.appendChild(moreWrap);
+    }
+
+    var nativeSearch = document.querySelector("#qSearch");
+    var anchor = nativeSearch && nativeSearch.closest ? nativeSearch.closest("form") : null;
+    if (anchor && anchor.parentNode) {
+      anchor.parentNode.insertBefore(host, anchor.nextSibling);
+    } else {
+      main.insertBefore(host, main.firstChild);
+    }
+
+    setNativeSearchMetaVisible(false);
+
+    hideNativeWebsiteResults();
+    var nativeList = document.querySelector("main .container--search-results");
+    if (nativeList) { nativeList.setAttribute("data-smartfinder-native-hidden", "true"); nativeList.style.display = "none"; }
+    earlyShow();
+
+    try { host.scrollIntoView({ behavior: "smooth", block: "start" }); }
+    catch (e) { host.scrollIntoView(true); }
+  }
+
+  function appendResultRows(host, query, results, programIndex, beforeNode) {
+    for (var i = 0; ltFn(i, results.length); i++) {
+      var p = results[i];
+
+      if (!p) continue;
+
+      var key = programKey(p);
+      if (key && host.querySelector('[data-program-key="' + esc(key) + '"]')) continue;
+
+      var row = document.createElement("article");
+      row.className = "sf-result";
+      if (key) row.setAttribute("data-program-key", key);
+
+      var imageCol = document.createElement("div");
+      imageCol.className = "sf-image";
+
+      if (p.image_url) {
+        var imgLink = document.createElement("a");
+        imgLink.href = p.url || "#";
+
+        var img = document.createElement("img");
+        img.src = p.image_url;
+        img.alt = p.title || "";
+        img.className = "img-responsive";
+
+        imgLink.appendChild(img);
+        imageCol.appendChild(imgLink);
+      }
+
+      var textCol = document.createElement("div");
+      textCol.className = "sf-content";
+
+      var h = document.createElement("h3");
+      var a = document.createElement("a");
+      a.href = p.url || "#";
+      a.textContent = p.title || "";
+      h.appendChild(a);
+      textCol.appendChild(h);
+
+      var desc = resultDescription(p);
+      if (desc) {
+        var d = document.createElement("p");
+        d.textContent = desc.length > 520 ? desc.slice(0, 517) + "..." : desc;
+        textCol.appendChild(d);
+      }
+
+      appendCategoryLinks(textCol, p);
+
+      appendRelatedPrograms(textCol, p, programIndex || {});
+
+      row.appendChild(imageCol);
+      row.appendChild(textCol);
+
+      if (beforeNode && beforeNode.parentNode === host) {
+        host.insertBefore(row, beforeNode);
+      } else {
+        host.appendChild(row);
+      }
+    }
+  }
+
+  function loadMoreInPageResults(host, query, page, programIndex, moreWrap, moreButton, sortMode) {
+    if (!host || !moreButton || moreButton.disabled) return;
+
+    moreButton.disabled = true;
+    moreButton.textContent = "Φόρτωση...";
+
+    var mySeq = inPageRequestSeq;
+
+    if (loadMoreController) {
+      try { loadMoreController.abort(); } catch (e) {}
+    }
+
+    loadMoreController =
+      typeof AbortController === "function" ? new AbortController() : null;
+
+    fetch(
+      BACKEND_URL + "/api/search?q=" + encodeURIComponent(query) +
+      "&format=paged&page=" + encodeURIComponent(page) +
+      "&page_size=40&sort=" + encodeURIComponent(sortMode || "relevance"),
+      loadMoreController ? { signal: loadMoreController.signal } : undefined
+    )
+      .then(function (r) {
+        return r.ok ? r.json() : null;
+      })
+      .then(function (data) {
+        if (mySeq !== inPageRequestSeq) return;
+
+        if (!data || !Array.isArray(data.results) || !data.pagination) {
+          throw new Error("Invalid paged response");
+        }
+
+        if (host.getAttribute("data-smartfinder-query") !== query) return;
+        if (host.getAttribute("data-smartfinder-sort") !== (sortMode || "relevance")) return;
+
+        appendResultRows(host, query, data.results, programIndex || {}, moreWrap);
+
+        if (data.pagination.has_next) {
+          moreButton.disabled = false;
+          moreButton.textContent = "Εμφάνιση περισσότερων";
+          moreButton.setAttribute(
+            "data-next-page",
+            String(data.pagination.page + 1)
+          );
+        } else if (moreWrap && moreWrap.parentNode) {
+          moreWrap.parentNode.removeChild(moreWrap);
+        }
+      })
+      .catch(function () {
+        moreButton.disabled = false;
+        moreButton.textContent = "Δοκιμάστε ξανά";
+      });
+  }
+
+  var inPageRequestSeq = 0;
+  var inPageController = null;
+  var loadMoreController = null;
+
+  function loadInPageResults(query, sortMode) {
+    sortMode = sortMode === "price_asc" ? "price_asc" : "relevance";
+    var mySeq = ++inPageRequestSeq;
+
+    setNativeSearchMetaVisible(false);
+
+    if (loadMoreController) {
+      try { loadMoreController.abort(); } catch (e) {}
+      loadMoreController = null;
+    }
+
+    if (inPageController) {
+      try { inPageController.abort(); } catch (e) {}
+    }
+
+    inPageController =
+      typeof AbortController === "function" ? new AbortController() : null;
+    Promise.all([
+      fetch(
+        BACKEND_URL + "/api/search?q=" + encodeURIComponent(query) +
+        "&format=paged&page=1&page_size=40&sort=" + encodeURIComponent(sortMode),
+        inPageController ? { signal: inPageController.signal } : undefined
+      ).then(function (r) {
+        return r.ok ? r.json() : null;
+      }),
+      getProgramIndex()
+    ])
+      .then(function (parts) {
+        if (mySeq !== inPageRequestSeq) return;
+
+        var data = parts[0];
+        var results = data && Array.isArray(data.results) ? data.results : [];
+        var pagination = data && data.pagination ? data.pagination : {
+          page: 1,
+          page_size: 40,
+          total_results: results.length,
+          total_pages: results.length ? 1 : 0,
+          has_previous: false,
+          has_next: false
+        };
+        renderInEkpaSearchPage(query, results, parts[1] || {}, pagination, sortMode);
+      })
+      .catch(function () {
+        if (mySeq !== inPageRequestSeq) return;
+
+        setNativeSearchMetaVisible(true);
+        earlyShow();
+
+        var old = document.getElementById("ekpa-smartfinder-results");
+        if (old && old.parentNode) old.parentNode.removeChild(old);
+      });
+  }
+
+  function goToEkpaResults(input) {
+    try {
+      var q = String(input.value || "").trim();
+      if (ltFn(q.length, MIN_CHARS)) return false;
+
+      // Stay on the EKPA domain. On non-search pages move to the site's own
+      // /search route; v23 reads ?q= there and replaces the native result area.
+      if (window.location.pathname !== "/search") {
+        window.location.href = "/search?q=" + encodeURIComponent(q);
+        return true;
+      }
+
+      if (window.history && window.history.replaceState) {
+        window.history.replaceState(null, "", "/search?q=" + encodeURIComponent(q));
+      }
+      loadInPageResults(q);
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+
+
+  function findSubmitClickTarget(el) {
+    try {
+      if (!el) return null;
+      if (el.closest && el.closest(".tt-menu")) return null;
+      var form = el.closest ? el.closest("form") : null;
+      if (!form) return null;
+      var input = form.querySelector("[data-ekpa-enhanced]");
+      if (!input || el === input) return null;
+      return input;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  var captureCleanupInstalled = false;
+  function installCaptureCleanup() {
+    if (captureCleanupInstalled) return;
+    captureCleanupInstalled = true;
+
+    document.addEventListener("keydown", function (e) {
+      if (e.key !== "Enter") return;
+      var input = findEnhancedInputNear(e.target);
+      if (!input) return;
+      var wrap = input.closest ? input.closest(".twitter-typeahead") : null;
+      if (wrap && wrap.querySelector(".tt-suggestion.tt-cursor")) return;
+      if (goToEkpaResults(input)) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+    }, true);
+
+    document.addEventListener("click", function (e) {
+      var input = findSubmitClickTarget(e.target);
+      if (!input) return;
+      if (goToEkpaResults(input)) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+    }, true);
+  }
+
+  // Deep-link support: when /search?q=... opens, render SmartFinder results
+  // inside the EKPA page after the normal page DOM is available.
+  function runSearchPageQuery() {
+    if (window.location.pathname !== "/search") return;
+    var m = /(?:^|[?&])q=([^&]*)/.exec(window.location.search || "");
+    if (!m) return;
+    var q = "";
+    try { q = decodeURIComponent(m[1].replace(/\+/g, " ")).trim(); } catch (e) {}
+    if (ltFn(q.length, MIN_CHARS)) return;
+    var qSearch = document.querySelector("#qSearch");
+    if (qSearch) qSearch.value = q;
+    loadInPageResults(q);
+  }
+
+  function enhance(input) {
+    if (!input || input.getAttribute("data-ekpa-enhanced")) return;
+    input.setAttribute("data-ekpa-enhanced", "1");
+    injectHoverStyle();
+    attachSearchAnalytics(input);
+    attachQueryCleanup(input);
+    installCaptureCleanup();
+    if (!tryTypeahead(input)) enhanceStandalone(input);
+  }
+  function init() {
+    SELECTORS.forEach(function (sel) {
+      var nodes = document.querySelectorAll(sel);
+      for (var i = 0; ltFn(i, nodes.length); i++) enhance(nodes[i]);
+    });
+  }
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", function () {
+      init();
+      runSearchPageQuery();
+    });
+  } else {
+    init();
+    runSearchPageQuery();
+  }
+  var attempts = 0;
+  var watcher = setInterval(function () {
+    attempts++;
+    init();
+    if (gtFn(attempts, 20)) clearInterval(watcher);
+  }, 500);
+})();
+</script>
