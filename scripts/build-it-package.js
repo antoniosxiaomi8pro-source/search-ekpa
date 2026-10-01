@@ -26,7 +26,8 @@ const { execFileSync, spawn } = require("node:child_process");
 
 const ROOT = path.join(__dirname, "..");
 const PROD_BACKEND = "https://smartfinder.elearningekpa.gr";
-const WIDGET_FILE = "release/gtm/ekpa-search-widget-gtm-v26-PRODUCTION.txt";
+const WIDGET_FILE = "release/gtm/ekpa-search-widget-gtm-v30-PRODUCTION.txt";
+const SITE_HEAD_FILE = "release/site-head/SITE-HEAD-HOLD-2026-10-01.html"; // optional snippet for the website <head>, shipped with the package
 const ROOT_DOCS = [
   "ADMIN-PANEL-GUIDE.md", "ADMIN-CATALOG-GUIDE.md", "API-KEY-SETUP.md", "ARCHITECTURE.md", "DEPLOY-Railway.md",
   "DEPLOY-SelfHosted.md", "GTMREADME.md", "HANDOVER-NOTES.md", "INSTALL-GUIDE.md",
@@ -195,6 +196,14 @@ async function main() {
   if (!fs.existsSync(widget)) fail("Λείπει το " + WIDGET_FILE);
   checkWidget(widget);
   step("GTM widget: PRODUCTION backend, ES5 - OK");
+  const siteHead = path.join(ROOT, SITE_HEAD_FILE);
+  if (!fs.existsSync(siteHead)) fail("Λείπει το " + SITE_HEAD_FILE);
+  const headSrc = fs.readFileSync(siteHead, "utf8");
+  // The snippet goes into every page of the live site: it must be self-contained and harmless.
+  if (/src\s*=|https?:\/\/(?!elearningekpa)/i.test(headSrc.replace(/<!--[\s\S]*?-->/g, ""))) fail("Το site-head snippet φορτώνει εξωτερικό πόρο.");
+  if (!headSrc.includes("sf-hold") || !headSrc.includes("setTimeout")) fail("Το site-head snippet δεν έχει την κλάση sf-hold ή το δίχτυ ασφαλείας (setTimeout).");
+  if (!fs.readFileSync(widget, "utf8").includes("sf-hold")) fail("Το widget δεν αφαιρεί την κλάση sf-hold - το snippet δεν θα συνεργαζόταν με το widget.");
+  step("Site-head snippet: αυτάρκες, με δίχτυ ασφαλείας, συνεργάζεται με το widget - OK");
 
   const stage = fs.mkdtempSync(path.join(os.tmpdir(), "sf-pkg-"));
   const pkg = path.join(stage, name);
@@ -239,6 +248,7 @@ async function main() {
     const addenda = fs.readdirSync(path.join(ROOT, "release/it-docs")).filter((f) => f.endsWith(".md")).sort();
     for (const f of addenda) fs.copyFileSync(path.join(ROOT, "release/it-docs", f), path.join(pkg, f));
     fs.copyFileSync(widget, path.join(pkg, path.basename(WIDGET_FILE)));
+    fs.copyFileSync(siteHead, path.join(pkg, path.basename(SITE_HEAD_FILE)));
 
     // 4. Nothing forbidden inside.
     const files = walk(pkg);
@@ -255,6 +265,10 @@ async function main() {
       "Production GTM artifact:",
       `${sha256(path.join(pkg, path.basename(WIDGET_FILE)))}  ${path.basename(WIDGET_FILE)}`,
       `Production backend: ${PROD_BACKEND}`,
+      "",
+      "Optional website <head> snippet (hides the website's own result list until Smart Finder takes over):",
+      `${sha256(path.join(pkg, path.basename(SITE_HEAD_FILE)))}  ${path.basename(SITE_HEAD_FILE)}`,
+      "",
       "GTM container: GTM-TZJNFCW",
       "",
       `Backend source: Brandery repository commit ${commit.slice(0, 7)} (${subject})`,
