@@ -56,6 +56,34 @@ const PROGRAMS_FILE = process.env.PROGRAMS_FILE
   ? path.resolve(process.env.PROGRAMS_FILE)
   : path.join(PUBLIC_DIR, "programs.json");
 const catalogStore = new CatalogStore({ seedFile: PROGRAMS_FILE, dataDir: DATA_DIR, log: (m) => console.log(m) });
+// Official category pages of the site (name -> /categories/<slug>), so result cards
+// can link EVERY category of a program to a page that exists. The widget used to
+// build these URLs itself by transliteration, which gave 404s for 23 of 56
+// categories (2026-10-01). Names not on the site (old export names) get no link.
+const CATEGORY_URLS = (() => {
+  try {
+    const data = JSON.parse(fs.readFileSync(path.join(PUBLIC_DIR, "categories.json"), "utf-8"));
+    return new Map((data.categories || []).map((c) => [c.name, c.url]));
+  } catch (e) {
+    console.error("categories.json δεν διαβάστηκε - οι κάρτες θα είναι χωρίς links κατηγοριών:", e.message);
+    return new Map();
+  }
+})();
+// Primary category first, then the others in catalog order; only categories that
+// exist on the site.
+function categoryLinks(p) {
+  const names = [p.primary_area, ...(Array.isArray(p.areas_of_study) ? p.areas_of_study : [])];
+  const seen = new Set();
+  const out = [];
+  for (const name of names) {
+    if (!name || seen.has(name)) continue;
+    seen.add(name);
+    const url = CATEGORY_URLS.get(name);
+    if (url) out.push({ name, url });
+  }
+  return out;
+}
+
 let ALL_PROGRAMS = [];
 let PROGRAMS = [];
 let PROGRAMS_BY_KEY = new Map();
@@ -64,7 +92,8 @@ let PROGRAMS_BY_KEY = new Map();
 // entries / older widget versions), but "null"/"undefined"/"" are always rejected.
 function setCatalog(list) {
   ALL_PROGRAMS = list;
-  PROGRAMS = list.filter(isActive);
+  // Visitor-facing copies carry category_links; the stored catalog is not modified.
+  PROGRAMS = list.filter(isActive).map((p) => ({ ...p, category_links: categoryLinks(p) }));
   const byKey = new Map();
   list.forEach((p) => { if (p.slug) byKey.set(String(p.slug), p); });
   list.forEach((p) => {
@@ -290,6 +319,12 @@ const app = express();
 app.set("trust proxy", 1); // behind Railway / nginx — needed for correct rate-limit IPs
 app.disable("x-powered-by");
 app.use(compression()); // programs.json is ~4.9MB raw, well under 1MB gzipped
+// Every response may differ by Origin (CORS headers are added only for allowed
+// origins). Without "Vary: Origin" on ALL responses, a cacheable response fetched
+// without an Origin (e.g. this backend's own page loading /api/programs) is reused by
+// the browser for the widget's cross-origin request - which then fails CORS and the
+// related programs silently disappear (found 2026-10-01).
+app.use((req, res, next) => { res.vary("Origin"); next(); });
 app.use(cors(corsDelegate));
 app.use(express.json({ limit: "64kb" }));
 
@@ -302,7 +337,11 @@ app.get("/concepts.json", (req, res) => {
 // The raw file is also reachable as a static asset; serve the same visitor-facing list
 // as /api/programs so hidden programs don't leak through it.
 app.get("/programs.json", (req, res) => {
-  res.set("Cache-Control", "public, max-age=300");
+  // no-cache = the browser keeps it but revalidates each time (304 via ETag, tiny).
+  // A plain max-age let Chrome reuse a copy fetched WITHOUT CORS (this backend's own
+  // page) for the widget's cross-origin request, which then failed CORS and the
+  // related programs disappeared - "Vary: Origin" alone did not prevent it.
+  res.set("Cache-Control", "no-cache");
   res.json(PROGRAMS);
 });
 app.use(express.static(PUBLIC_DIR));
@@ -535,7 +574,11 @@ app.post("/api/track-click", trackLimiter, textBody, (req, res) => {
 
 // Full catalog endpoint — served straight from memory (parsed once at startup).
 app.get("/api/programs", searchLimiter, (req, res) => {
-  res.set("Cache-Control", "public, max-age=300");
+  // no-cache = the browser keeps it but revalidates each time (304 via ETag, tiny).
+  // A plain max-age let Chrome reuse a copy fetched WITHOUT CORS (this backend's own
+  // page) for the widget's cross-origin request, which then failed CORS and the
+  // related programs disappeared - "Vary: Origin" alone did not prevent it.
+  res.set("Cache-Control", "no-cache");
   res.json(PROGRAMS);
 });
 

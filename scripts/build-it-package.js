@@ -25,7 +25,7 @@ const { execFileSync, spawn } = require("node:child_process");
 
 const ROOT = path.join(__dirname, "..");
 const PROD_BACKEND = "https://smartfinder.elearningekpa.gr";
-const WIDGET_FILE = "release/gtm/ekpa-search-widget-gtm-v25-PRODUCTION.txt";
+const WIDGET_FILE = "release/gtm/ekpa-search-widget-gtm-v26-PRODUCTION.txt";
 const ROOT_DOCS = [
   "ADMIN-PANEL-GUIDE.md", "ADMIN-CATALOG-GUIDE.md", "API-KEY-SETUP.md", "ARCHITECTURE.md", "DEPLOY-Railway.md",
   "DEPLOY-SelfHosted.md", "GTMREADME.md", "HANDOVER-NOTES.md", "INSTALL-GUIDE.md",

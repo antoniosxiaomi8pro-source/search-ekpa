@@ -88,3 +88,27 @@ test("inactive: clicks on an old link to a hidden program are still recorded", a
   });
   assert.equal(res.status, 200);
 });
+
+test("cache safety: responses vary by Origin and the catalog is always revalidated", async () => {
+  for (const p of ["/api/programs", "/programs.json", "/api/search?q=test"]) {
+    const r = await fetch(base + p);
+    assert.match(r.headers.get("vary") || "", /Origin/i, p);
+  }
+  for (const p of ["/api/programs", "/programs.json"]) {
+    const r = await fetch(base + p);
+    assert.equal(r.headers.get("cache-control"), "no-cache", p);
+    assert.ok(r.headers.get("etag"), p + " needs an ETag for cheap 304 revalidation");
+  }
+});
+
+test("program cards: category_links point only to official category pages, primary first", async () => {
+  const list = await get("/api/programs");
+  const cats = JSON.parse(fs.readFileSync(path.join(ROOT, "public/categories.json"), "utf8")).categories;
+  const official = new Map(cats.map((c) => [c.name, c.url]));
+  for (const p of list) {
+    assert.ok(Array.isArray(p.category_links), p.slug);
+    for (const l of p.category_links) assert.equal(official.get(l.name), l.url, p.slug + " " + l.name);
+    if (official.has(p.primary_area)) assert.equal(p.category_links[0].name, p.primary_area, p.slug);
+    assert.equal(new Set(p.category_links.map((l) => l.name)).size, p.category_links.length, "no duplicates");
+  }
+});

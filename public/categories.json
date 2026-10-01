@@ -1,0 +1,249 @@
+{
+  "source": "https://elearningekpa.gr/categories (scraped 2026-09-29)",
+  "categories": [
+    {
+      "name": "Αθλητισμός",
+      "url": "/categories/athlitismos"
+    },
+    {
+      "name": "Αισθητική Προσώπου Σώματος -Medical Tattoo-Κοσμητολογία",
+      "url": "/categories/aisthitiki-prosopou-somatos-makigiaz-paraiatriko-makigiaz"
+    },
+    {
+      "name": "Άλλοι Τομείς",
+      "url": "/categories/alloi-tomeis"
+    },
+    {
+      "name": "Ανάλυση Δεδομένων - Στατιστική",
+      "url": "/categories/statistiki"
+    },
+    {
+      "name": "Γελοιογραφία - Σκίτσο - Κόμικ",
+      "url": "/categories/geloiografia-skitso-komik"
+    },
+    {
+      "name": "Γεωπολιτική της Ευρύτερης Μέσης Ανατολής και Τουρκίας",
+      "url": "/categories/geopolitiki-tis-euruteris-mesis-anatolis-kai-tourkias"
+    },
+    {
+      "name": "Γονείς - Οικογένεια",
+      "url": "/categories/goneis-oikogeneia"
+    },
+    {
+      "name": "Δημιουργική Γραφή - Επιμέλεια Κειμένων - Λογοτεχνία",
+      "url": "/categories/dimiourgiki-grafi-epimeleia-keimenon"
+    },
+    {
+      "name": "Δημόσιες Σχέσεις - Επικοινωνία",
+      "url": "/categories/dimosies-sxeseis-epikoinonia"
+    },
+    {
+      "name": "Δημοφιλή Προγράμματα",
+      "url": "/categories/dimofili-programmata"
+    },
+    {
+      "name": "Διαιτολογία - Διατροφή",
+      "url": "/categories/diaitologia-diatrofi"
+    },
+    {
+      "name": "Διοίκηση Ανθρώπινου Δυναμικού",
+      "url": "/categories/dioikisi-anthropinou-dunamikou"
+    },
+    {
+      "name": "Εγκληματολογία",
+      "url": "/categories/egklimatologia"
+    },
+    {
+      "name": "Ειδική Αγωγή",
+      "url": "/categories/eidiki-agogi"
+    },
+    {
+      "name": "Επαγγέλματα του Μέλλοντος",
+      "url": "/categories/epaggelmata-tou-mellontos"
+    },
+    {
+      "name": "Επαγγελματικός Προσανατολισμός",
+      "url": "/categories/epaggelmatikos-prosanatolismos"
+    },
+    {
+      "name": "Επιχειρηματικότητα - Κοινωνική Επιχειρηματικότητα",
+      "url": "/categories/epixeirimatikotita-koinoniki-epixeirimatikotita"
+    },
+    {
+      "name": "Επιχειρησιακός Σχεδιασμός και Ανάπτυξη",
+      "url": "/categories/epixeirisiakos-sxediasmos-kai-anaptuksi"
+    },
+    {
+      "name": "Εφαρμοσμένη Ελεγκτική και Μάνατζμεντ",
+      "url": "/categories/efarmosmeno-dioikitiko-dikaio-kai-manatzment"
+    },
+    {
+      "name": "Θετικές Επιστήμες",
+      "url": "/categories/thetikes-epistimes"
+    },
+    {
+      "name": "Θρησκεία - Εκκλησία",
+      "url": "/categories/thriskeia-ekklisia"
+    },
+    {
+      "name": "Κατεύθυνση Προγραμμάτων Ανάπτυξης Επαγγελματικών Δεξιοτήτων",
+      "url": "/categories/kateuthunsi-programmaton-anaptuksis-epaggelmatikon-deksiotiton"
+    },
+    {
+      "name": "Κινηματογράφος - Θέατρο",
+      "url": "/categories/kinimatografos-theatro"
+    },
+    {
+      "name": "Λογισμικές Εφαρμογές",
+      "url": "/categories/logismikes-efarmoges"
+    },
+    {
+      "name": "Λογιστική",
+      "url": "/categories/logistiki-kateuthunsi"
+    },
+    {
+      "name": "Μοριοδοτούμενα Προγράμματα Παιδαγωγικών & Ειδικής Αγωγής",
+      "url": "/categories/moriodotoumena-programmata-paidagogikon-kai-eidikis-agogis"
+    },
+    {
+      "name": "Μουσική",
+      "url": "/categories/mousiki"
+    },
+    {
+      "name": "Ναυτιλιακά",
+      "url": "/categories/nautiliaka"
+    },
+    {
+      "name": "Νομικά",
+      "url": "/categories/nomika"
+    },
+    {
+      "name": "Νοσηλευτική",
+      "url": "/categories/nosileutiki"
+    },
+    {
+      "name": "Ξένες Γλώσσες - Μετάφραση",
+      "url": "/categories/ksenes-glosses-metafrasi"
+    },
+    {
+      "name": "Οικονομική Ανάπτυξη, Συμπεριφορές και Σχεδιασμός του Μέλλοντος σε Ελλάδα και Ευρώπη",
+      "url": "/categories/oikonomiki-anaptuksi-sumperifores-kai-sxediasmos-tou-mellontos-se-ellada-kai-europi"
+    },
+    {
+      "name": "Οικονομική Κρίση και Ανάκαμψη μετά τον Covid-19",
+      "url": "/categories/oikonomiki-krisi-kai-anakampsi-meta-ton-covid-19"
+    },
+    {
+      "name": "Οικονομικός & Χρηματ/κός Εγγραμματισμός",
+      "url": "/categories/oikonomikos-kai-xrimatooikonomikos-eggrammatismos"
+    },
+    {
+      "name": "Οινολογία",
+      "url": "/categories/oinologia"
+    },
+    {
+      "name": "Οργάνωση και Διοίκηση Επιχειρήσεων",
+      "url": "/categories/organosi-kai-dioikisi-epixeiriseon"
+    },
+    {
+      "name": "Παιδαγωγικά",
+      "url": "/categories/paidagogika"
+    },
+    {
+      "name": "Περιβάλλον και Ανάπτυξη",
+      "url": "/categories/periballon-kai-anaptuksi"
+    },
+    {
+      "name": "Πληροφορική - Δίκτυα - Web Design - Μοντάζ",
+      "url": "/categories/pliroforiki-diktua-web-design-montaz"
+    },
+    {
+      "name": "Πολιτισμός και Εξωστρέφεια",
+      "url": "/categories/politismos-kai-eksostrefeia"
+    },
+    {
+      "name": "Προγράμματα με Πιστοποίηση από TÜV HELLAS (TÜV NORD)",
+      "url": "/categories/programmata-me-pistopoiisi-apo-tuev-hellas"
+    },
+    {
+      "name": "Προγράμματα που συνδέονται με Διεθνείς Πιστοποιήσεις / Πιστοποιήσεις",
+      "url": "/categories/programmata-me-diethni-pistopoiisi"
+    },
+    {
+      "name": "Προσωπικές Ικανότητες",
+      "url": "/categories/prosopikes-hkanotites"
+    },
+    {
+      "name": "Στο εργαστήρι του Συγγραφέα",
+      "url": "/categories/sto-ergastiri-tou-syggrafea"
+    },
+    {
+      "name": "Τεχνητή Νοημοσύνη (AI)",
+      "url": "/categories/texniti-noimosuni-ai"
+    },
+    {
+      "name": "Τουριστικά",
+      "url": "/categories/touristika"
+    },
+    {
+      "name": "Υγεία",
+      "url": "/categories/ygeia"
+    },
+    {
+      "name": "Φιλοσοφία",
+      "url": "/categories/filosofia"
+    },
+    {
+      "name": "Φωτογραφία",
+      "url": "/categories/fotografia"
+    },
+    {
+      "name": "Χρηματοοικονομική και Τραπεζική",
+      "url": "/categories/xrimatooikonomiki-kai-trapeziki"
+    },
+    {
+      "name": "Ψηφιακές Δεξιότητες για το Μέλλον",
+      "url": "/categories/psifiakes-deksiotites-gia-to-mellon"
+    },
+    {
+      "name": "Ψηφιακός Μετασχηματισμός",
+      "url": "/categories/blockchain"
+    },
+    {
+      "name": "Ψυχολογία - Ψυχιατρική",
+      "url": "/categories/psuxologia-psuxiatriki"
+    },
+    {
+      "name": "Business Intelligence and Business Analytics",
+      "url": "/categories/business-intelligence-and-business-analytics"
+    },
+    {
+      "name": "Cisco Networking Academy",
+      "url": "/categories/cisco-networking-academy"
+    },
+    {
+      "name": "Coaching",
+      "url": "/categories/coaching"
+    },
+    {
+      "name": "Logistics",
+      "url": "/categories/logistics"
+    },
+    {
+      "name": "Marketing και Πωλήσεις",
+      "url": "/categories/marketing-kai-poliseis"
+    },
+    {
+      "name": "Real Estate",
+      "url": "/categories/real-estate"
+    },
+    {
+      "name": "Security Sciences (Επιστήμες Ασφάλειας)",
+      "url": "/categories/security-sciences-epistimes-asfaleias"
+    },
+    {
+      "name": "Web Development",
+      "url": "/categories/web-development"
+    }
+  ]
+}
