@@ -86,7 +86,7 @@ Manager — δες `GTMREADME.md` για setup βήμα-βήμα και `ekpa-se
 
 ## 🆘 Κάτι δεν δουλεύει;
 
-1. `curl http://localhost:PORT/health` → πρέπει `{"ok":true,"programs":702}`
+1. `curl http://localhost:PORT/health` → πρέπει `{"ok":true,"programs":702,"active_programs":693}` (το «programs» είναι ο συνολικός κατάλογος, το «active_programs» όσα βλέπουν οι επισκέπτες)
 2. Έλεγξε τα `pm2 logs` (ή `journalctl -u ekpa-smart-finder` αν systemd)
 3. Έλεγξε ότι το `.env` έχει σωστές τιμές (ειδικά `ANTHROPIC_API_KEY`,
    `ALLOWED_ORIGINS`)

@@ -2,6 +2,7 @@
 // Builds the production handoff package for EKPA IT (R0, docs/B0-architecture-decisions.md §8).
 //
 //   npm run package:it -- --date 2026-10-15
+//   npm run package:it -- --date 2026-10-15 --rev 2          (second package of the same day: ...-2026-10-15-v2-...)
 //   npm run package:it -- --date 2026-10-15 --ref <commit>   (default: HEAD)
 //   npm run package:it -- --date 2026-10-15 --out <dir>      (default: ~/Desktop/Search EKPA FINAL VESRSION IT )
 //
@@ -72,6 +73,8 @@ function checkWidget(file) {
   for (const [re, name] of es6) if (re.test(code)) fail(`Το widget περιέχει ${name} (μη ES5) - ο GTM θα το απορρίψει.`);
 }
 
+const SMOKE_TOKEN = "smoke-" + crypto.randomBytes(8).toString("hex");
+
 // ---- Contract smoke test against the packaged backend ----
 async function smokeTest(backendDir) {
   const port = await new Promise((resolve, reject) => {
@@ -82,7 +85,7 @@ async function smokeTest(backendDir) {
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), "sf-pkg-data-"));
   const server = spawn(process.execPath, ["server/server.js"], {
     cwd: backendDir,
-    env: { PATH: process.env.PATH, PORT: String(port), DATA_DIR: dataDir, ALLOWED_ORIGINS: "https://elearningekpa.gr", ADMIN_TOKEN: "" },
+    env: { PATH: process.env.PATH, PORT: String(port), DATA_DIR: dataDir, ALLOWED_ORIGINS: "https://elearningekpa.gr", ADMIN_TOKEN: SMOKE_TOKEN },
     stdio: ["ignore", "pipe", "pipe"],
   });
   let log = "";
@@ -127,12 +130,34 @@ async function smokeTest(backendDir) {
     const programs = await getJson("/api/programs");
     if (!Array.isArray(programs) || programs.length === 0) fail("/api/programs άδειο.");
 
+    // v26 widget: every visitor-facing program carries working category links.
+    const noLinks = programs.filter((p) => !Array.isArray(p.category_links));
+    if (noLinks.length) fail(`/api/programs: ${noLinks.length} προγράμματα χωρίς category_links - το widget v26 δεν θα έδειχνε links κατηγοριών.`);
+    if (!programs.some((p) => p.category_links.length > 1)) fail("/api/programs: κανένα πρόγραμμα με περισσότερες από μία κατηγορίες.");
+    // Hidden programs never reach visitors, and /health reports both numbers.
+    if (!(health.active_programs > 0 && health.active_programs < health.programs)) fail("/health: αναμενόταν active_programs < programs (κρυμμένα προγράμματα): " + JSON.stringify(health));
+    if (programs.length !== health.active_programs) fail(`/api/programs (${programs.length}) δεν ταιριάζει με active_programs (${health.active_programs}).`);
+    if (programs.some((p) => p.status === "inactive")) fail("/api/programs περιέχει κρυμμένο (inactive) πρόγραμμα.");
+    const noId = programs.filter((p) => p.id === null || p.id === undefined);
+    const noDesc = programs.filter((p) => !(p.description_full || p.description_for_matching));
+    const noCat = programs.filter((p) => !p.primary_area);
+    const noPrice = programs.filter((p) => p.price === null || p.price === undefined || p.price === "");
+
+    // Admin "Κατάλογος" tab: endpoint works with the token, is closed without it, and the page ships the tab.
+    const adminOk = await fetch(`${base}/api/admin/catalog`, { headers: { "x-admin-token": SMOKE_TOKEN } });
+    if (adminOk.status !== 200) fail("GET /api/admin/catalog με σωστό token → HTTP " + adminOk.status);
+    const cat = await adminOk.json();
+    if (!cat || !cat.live || cat.live.active !== health.active_programs || cat.live.inactive !== health.programs - health.active_programs) fail("/api/admin/catalog: μη αναμενόμενη απάντηση: " + JSON.stringify(cat).slice(0, 300));
+    if ((await fetch(`${base}/api/admin/catalog`)).status !== 401) fail("GET /api/admin/catalog χωρίς token δεν απορρίφθηκε.");
+    const adminPage = await (await fetch(`${base}/admin-taxonomy.html`)).text();
+    if (!adminPage.includes("Κατάλογος")) fail("Το admin-taxonomy.html δεν έχει την καρτέλα Κατάλογος.");
+
     const allowed = await fetch(`${base}/api/search?q=hr`, { headers: ORIGIN });
     if (allowed.headers.get("access-control-allow-origin") !== "https://elearningekpa.gr") fail("CORS: δεν επιτρέπεται το https://elearningekpa.gr.");
     const denied = await fetch(`${base}/api/search?q=hr`, { headers: { Origin: "https://evil.example" } });
     if (denied.status !== 403) fail("CORS: άγνωστο origin δεν απορρίφθηκε (HTTP " + denied.status + ").");
 
-    return { health, typeahead: ta.length, programs: programs.length };
+    return { health, typeahead: ta.length, programs: programs.length, gaps: { noId: noId.length, noDesc: noDesc.length, noCat: noCat.length, noPrice: noPrice.length } };
   } finally {
     // Wait for the server to exit before removing its DATA_DIR (it writes there).
     if (server.exitCode === null) await new Promise((r) => { server.once("exit", r); server.kill(); });
@@ -143,9 +168,12 @@ async function smokeTest(backendDir) {
 async function main() {
   const date = arg("date");
   if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) fail("Δώσε --date YYYY-MM-DD.");
+  const rev = arg("rev");
+  if (rev !== undefined && !/^[2-9]$|^[1-9]\d$/.test(rev)) fail("Το --rev πρέπει να είναι αριθμός ≥ 2 (το πρώτο πακέτο της ημέρας δεν έχει --rev).");
+  const label = rev ? `${date}-v${rev}` : date; // used in every file name inside the package
   const ref = arg("ref", "HEAD");
   const outDir = path.resolve(arg("out", process.env.IT_PACKAGE_DIR || path.join(os.homedir(), "Desktop", "Search EKPA FINAL VESRSION IT ")));
-  const name = `ekpa-smart-finder-IT-package-${date}-PRODUCTION`;
+  const name = `ekpa-smart-finder-IT-package-${label}-PRODUCTION`;
   const zipPath = path.join(outDir, name + ".zip");
 
   // 7 (early): never overwrite a package that may already have been sent.
@@ -161,7 +189,7 @@ async function main() {
   }
 
   // 6 + 5: release assets (taken from the working tree; they are frozen by SHA in the manifest).
-  const addendum = path.join(ROOT, "release/it-docs", `HANDOVER-NOTES-ADDENDUM-${date}.md`);
+  const addendum = path.join(ROOT, "release/it-docs", `HANDOVER-NOTES-ADDENDUM-${label}.md`);
   if (!fs.existsSync(addendum)) fail(`Λείπει το ${path.relative(ROOT, addendum)} - κάθε πακέτο χρειάζεται τις δικές του σημειώσεις για το IT.`);
   const widget = path.join(ROOT, WIDGET_FILE);
   if (!fs.existsSync(widget)) fail("Λείπει το " + WIDGET_FILE);
@@ -172,6 +200,7 @@ async function main() {
   const pkg = path.join(stage, name);
   const backend = path.join(pkg, "search-ekpa");
   fs.mkdirSync(backend, { recursive: true });
+  let testsPass = null;
   try {
     // 1. Code from the commit.
     execFileSync("sh", ["-c", `git archive ${commit} | tar -x -C "${backend}"`], { cwd: ROOT });
@@ -185,6 +214,7 @@ async function main() {
       const out = execFileSync("npm", ["test"], { cwd: backend, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
       const pass = /ℹ pass (\d+)/.exec(out), failN = /ℹ fail (\d+)/.exec(out);
       if (!pass || !failN || failN[1] !== "0") fail("Tests:\n" + out.slice(-2000));
+      testsPass = pass[1];
       step(`Tests: ${pass[1]} pass / 0 fail`);
     } catch (e) {
       fail("Τα tests απέτυχαν:\n" + String(e.stdout || e.message).slice(-3000));
@@ -192,8 +222,17 @@ async function main() {
 
     // 3. Contract smoke test.
     const smoke = await smokeTest(backend);
+    smoke.testsPass = testsPass;
     step(`API contract του widget: OK (${smoke.health.programs} προγράμματα, ${smoke.health.active_programs ?? smoke.health.programs} ενεργά)`);
     fs.unlinkSync(path.join(backend, "node_modules"));
+    step(`Κενά στα ορατά προγράμματα: χωρίς id ${smoke.gaps.noId}, περιγραφή ${smoke.gaps.noDesc}, κατηγορία ${smoke.gaps.noCat}, τιμή ${smoke.gaps.noPrice}`);
+
+    // The addendum tells IT what /health must return. It has to be the number this very
+    // package returns, not one remembered from an older package.
+    const addText = fs.readFileSync(addendum, "utf8");
+    const healthJson = JSON.stringify(smoke.health);
+    if (!addText.includes(healthJson)) fail(`Το addendum δεν περιέχει την πραγματική απάντηση του /health αυτού του πακέτου: ${healthJson}`);
+    if (!addText.includes(`tests ${smoke.testsPass} / pass ${smoke.testsPass} / fail 0`)) fail(`Το addendum δεν αναφέρει τον πραγματικό αριθμό tests: tests ${smoke.testsPass} / pass ${smoke.testsPass} / fail 0`);
 
     // Top-level docs + release assets.
     for (const f of ROOT_DOCS) if (fs.existsSync(path.join(backend, f))) fs.copyFileSync(path.join(backend, f), path.join(pkg, f));
@@ -211,7 +250,7 @@ async function main() {
     const keyFiles = ["server/server.js", "server/search-api-contract.js", "server/catalog-sync.js", "server/catalog-store.js", "server/program-enrich.js", "server/ranking-diff.js", "public/search-engine.js", "public/concepts.json", "public/programs.json", "public/index.html"]
       .filter((f) => fs.existsSync(path.join(backend, f)));
     const manifest = [
-      `EKPA SMART FINDER — PRODUCTION HANDOFF — ${date}`,
+      `EKPA SMART FINDER — PRODUCTION HANDOFF — ${label}`,
       "",
       "Production GTM artifact:",
       `${sha256(path.join(pkg, path.basename(WIDGET_FILE)))}  ${path.basename(WIDGET_FILE)}`,
@@ -225,11 +264,11 @@ async function main() {
       "Deployment order: BACKEND FIRST -> verify (see addendum) -> THEN enable GTM production tag.",
       "TESTING preservation: SmartFinder - TESTING2 must remain unchanged.",
       "",
-      `Read first: HANDOVER-NOTES-ADDENDUM-${date}.md`,
-      `Where older documents conflict, the ${date} addendum wins.`,
+      `Read first: HANDOVER-NOTES-ADDENDUM-${label}.md`,
+      `Where older documents conflict, the ${label} addendum wins.`,
       "",
     ].join("\n");
-    fs.writeFileSync(path.join(pkg, `RELEASE-MANIFEST-${date}.txt`), manifest);
+    fs.writeFileSync(path.join(pkg, `RELEASE-MANIFEST-${label}.txt`), manifest);
 
     execFileSync("zip", ["-qrX", zipPath, name], { cwd: stage });
     console.log(`\n✅ ${zipPath}\n`);
