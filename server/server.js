@@ -14,22 +14,12 @@ const fs = require("fs");
 const path = require("path");
 const EkpaSearch = require("../public/search-engine.js");
 const SearchApiContract = require("./search-api-contract.js");
-const { isActive } = require("./catalog-sync.js");
+const CatalogSync = require("./catalog-sync.js");
+const { isActive } = CatalogSync;
+const { CatalogStore } = require("./catalog-store.js");
+const RankingDiff = require("./ranking-diff.js");
 
 const PUBLIC_DIR = path.join(__dirname, "../public");
-// ALL_PROGRAMS: the full catalog, including programs outside the current cycle
-// (status "inactive", see docs/B0-architecture-decisions.md §5). Used only where a
-// hidden program must still be recognised: click tracking of old links and the
-// ranking-drift guard (whose fixture was captured on the full catalog).
-// PROGRAMS: what visitors can find — search, chat, /api/programs. Inactive programs are
-// filtered here, BEFORE the search engine, so the validated engine itself is unchanged.
-// PROGRAMS_FILE (optional) points at another catalog file - used by the tests.
-const PROGRAMS_FILE = process.env.PROGRAMS_FILE
-  ? path.resolve(process.env.PROGRAMS_FILE)
-  : path.join(PUBLIC_DIR, "programs.json");
-const ALL_PROGRAMS = JSON.parse(fs.readFileSync(PROGRAMS_FILE, "utf-8"));
-const PROGRAMS = ALL_PROGRAMS.filter(isActive);
-
 // ---- Persistent data directory ----
 // Files that CHANGE at runtime (admin taxonomy edits, analytics) must live outside the
 // code tree, otherwise:
@@ -52,6 +42,39 @@ if (DATA_DIR) {
 }
 let CONCEPTS = JSON.parse(fs.readFileSync(CONCEPTS_PATH, "utf-8"));
 
+// ---- Catalog ----
+// Live catalog = the NEWEST check between the package's public/programs.json and the
+// admin button's DATA_DIR/programs.json (server/catalog-store.js, B0 §5).
+// ALL_PROGRAMS: the full catalog, including programs outside the current cycle
+// (status "inactive"). Used only where a hidden program must still be recognised:
+// click tracking of old links and the ranking-drift guard (whose fixture was captured
+// on the full catalog).
+// PROGRAMS: what visitors can find — search, chat, /api/programs. Inactive programs are
+// filtered here, BEFORE the search engine, so the validated engine itself is unchanged.
+// PROGRAMS_FILE (optional) points at another package catalog - used by the tests.
+const PROGRAMS_FILE = process.env.PROGRAMS_FILE
+  ? path.resolve(process.env.PROGRAMS_FILE)
+  : path.join(PUBLIC_DIR, "programs.json");
+const catalogStore = new CatalogStore({ seedFile: PROGRAMS_FILE, dataDir: DATA_DIR, log: (m) => console.log(m) });
+let ALL_PROGRAMS = [];
+let PROGRAMS = [];
+let PROGRAMS_BY_KEY = new Map();
+// ~1/3 of the original export had `id: null`, so `slug` (always present, unique) is the
+// canonical key for click tracking. Numeric ids are still accepted (legacy analytics
+// entries / older widget versions), but "null"/"undefined"/"" are always rejected.
+function setCatalog(list) {
+  ALL_PROGRAMS = list;
+  PROGRAMS = list.filter(isActive);
+  const byKey = new Map();
+  list.forEach((p) => { if (p.slug) byKey.set(String(p.slug), p); });
+  list.forEach((p) => {
+    if (p.id !== null && p.id !== undefined && !byKey.has(String(p.id))) byKey.set(String(p.id), p);
+  });
+  PROGRAMS_BY_KEY = byKey;
+  EkpaSearch.search(PROGRAMS, CONCEPTS, "warmup", 1); // build the index now, not on a visitor's request
+}
+setCatalog(catalogStore.load());
+
 // Atomic write: write to a temp file in the same directory, then rename. A crash or
 // full disk mid-write can never leave a half-written (corrupt) JSON file behind.
 function writeFileAtomicSync(filePath, content) {
@@ -61,15 +84,6 @@ function writeFileAtomicSync(filePath, content) {
 }
 
 // ---- Program lookup ----
-// ~1/3 of the catalog has `id: null` (programs exported without a CMS id), so the id
-// cannot be used as a key. `slug` is present and unique for every program, so it is the
-// canonical key for click tracking. Numeric ids are still accepted (legacy analytics
-// entries / older widget versions), but "null"/"undefined"/"" are always rejected.
-const PROGRAMS_BY_KEY = new Map();
-ALL_PROGRAMS.forEach((p) => { if (p.slug) PROGRAMS_BY_KEY.set(String(p.slug), p); });
-ALL_PROGRAMS.forEach((p) => {
-  if (p.id !== null && p.id !== undefined && !PROGRAMS_BY_KEY.has(String(p.id))) PROGRAMS_BY_KEY.set(String(p.id), p);
-});
 function resolveProgram(key) {
   const k = String(key == null ? "" : key).trim();
   if (!k || k === "null" || k === "undefined") return null;
@@ -269,6 +283,8 @@ const searchLimiter = makeLimiter("SEARCH_RATE_LIMIT_PER_MIN", 120, "Πολλά 
 // Brute-force guard for the admin token (a real admin never needs 10 requests/minute).
 const adminLimiter = makeLimiter("ADMIN_RATE_LIMIT_PER_MIN", 10, "Πολλά αιτήματα admin — δοκίμασε ξανά σε λίγο.");
 const trackLimiter = makeLimiter("TRACK_RATE_LIMIT_PER_MIN", 120, "Πολλά αιτήματα tracking — δοκίμασε ξανά σε λίγο.");
+// The admin catalog tab polls progress every few seconds while a check runs.
+const catalogStatusLimiter = makeLimiter("CATALOG_STATUS_RATE_LIMIT_PER_MIN", 60, "Πολλά αιτήματα — δοκίμασε ξανά σε λίγο.");
 
 const app = express();
 app.set("trust proxy", 1); // behind Railway / nginx — needed for correct rate-limit IPs
@@ -675,6 +691,143 @@ app.get("/api/admin/analytics", adminLimiter, checkAdminToken, (req, res) => {
 });
 
 // CORS errors thrown by corsDelegate land here instead of crashing the process.
+// ---- Admin: catalog ("Κατάλογος" tab) ----
+// One check at a time, run in the background inside this process. A full check reads
+// every active program page slowly (~2s apart, the site rate-limits) - about 25 min.
+// Nothing changes until an admin reviews the result and presses "Εφαρμογή".
+const CATALOG_CHECK_DELAY_MS = Number(process.env.CATALOG_CHECK_DELAY_MS) >= 0 && process.env.CATALOG_CHECK_DELAY_MS !== undefined
+  ? Number(process.env.CATALOG_CHECK_DELAY_MS) : CatalogSync.DEFAULTS.delayMs;
+const CATALOG_SITE_ORIGIN = process.env.CATALOG_SITE_ORIGIN || undefined; // tests only
+let catalogJob = null; // { id, mode, state, started_at, finished_at, progress, error, summary, diff, ranking, candidate, base_checked_at, base_slugs }
+let quickCheckCache = null; // { at, result } - cleared whenever the live catalog changes
+
+function liveCatalogInfo() {
+  return {
+    ...catalogStore.meta,
+    total: ALL_PROGRAMS.length,
+    active: PROGRAMS.length,
+    inactive: ALL_PROGRAMS.length - PROGRAMS.length,
+    can_apply_here: !!DATA_DIR,
+  };
+}
+
+function publicJob(job) {
+  if (!job) return null;
+  const { candidate, base_slugs, ...rest } = job; // never send the whole catalog to the browser
+  return rest;
+}
+
+async function runCatalogJob(job) {
+  try {
+    const base = ALL_PROGRAMS;
+    job.base_checked_at = catalogStore.meta && catalogStore.meta.checked_at;
+    job.base_slugs = base.map((p) => p.slug);
+    const check = await CatalogSync.checkCatalog(base, {
+      withPrices: job.mode === "full",
+      delayMs: CATALOG_CHECK_DELAY_MS,
+      siteOrigin: CATALOG_SITE_ORIGIN,
+      onProgress: ({ done, total }) => { job.progress = { done, total }; },
+    });
+    if (!check.ok) throw new Error(check.error);
+    job.state = "comparing";
+    const { candidate, diff, summary } = CatalogSync.buildCandidate(base, check, { concepts: CONCEPTS });
+    const changed = new Set([...diff.gaps_filled.map((x) => x.slug), ...diff.new_added.map((x) => x.slug)]);
+    const ranking = await RankingDiff.compareRankingsAsync(base, candidate, CONCEPTS, RANKING_FIXTURE || {}, changed);
+    Object.assign(job, { candidate, diff, summary, ranking, state: "done", finished_at: new Date().toISOString() });
+    if (DATA_DIR) {
+      const dir = path.join(DATA_DIR, "catalog-check", job.id);
+      fs.mkdirSync(dir, { recursive: true });
+      writeFileAtomicSync(path.join(dir, "report.json"), JSON.stringify({ summary, diff }, null, 2));
+      writeFileAtomicSync(path.join(dir, "RANKING-DIFF.txt"), RankingDiff.toText(ranking));
+      writeFileAtomicSync(path.join(dir, "programs.candidate.json"), JSON.stringify(candidate));
+    }
+  } catch (e) {
+    console.error("Έλεγχος καταλόγου απέτυχε:", e);
+    Object.assign(job, { state: "failed", error: String(e.message || e), finished_at: new Date().toISOString() });
+  }
+}
+
+app.get("/api/admin/catalog", catalogStatusLimiter, checkAdminToken, (req, res) => {
+  res.json({ live: liveCatalogInfo(), job: publicJob(catalogJob), backups: catalogStore.listBackups().slice(0, 10) });
+});
+
+app.post("/api/admin/catalog/check", adminLimiter, checkAdminToken, (req, res) => {
+  if (catalogJob && ["running", "comparing"].includes(catalogJob.state)) {
+    return res.status(409).json({ error: "Τρέχει ήδη έλεγχος.", job: publicJob(catalogJob) });
+  }
+  const mode = req.body && req.body.mode === "status" ? "status" : "full";
+  catalogJob = {
+    id: new Date().toISOString().replace(/[:.]/g, "-"),
+    mode,
+    state: "running",
+    started_at: new Date().toISOString(),
+    progress: { done: 0, total: null },
+  };
+  runCatalogJob(catalogJob); // background - the request returns immediately
+  res.status(202).json({ job: publicJob(catalogJob) });
+});
+
+app.post("/api/admin/catalog/apply", adminLimiter, checkAdminToken, (req, res) => {
+  const job = catalogJob;
+  if (!DATA_DIR) return res.status(400).json({ error: "Ο server δεν έχει DATA_DIR - η εφαρμογή από το admin δεν θα διατηρούνταν μετά από επανεκκίνηση." });
+  if (!job || job.state !== "done") return res.status(400).json({ error: "Δεν υπάρχει ολοκληρωμένος έλεγχος για εφαρμογή." });
+  if (!req.body || req.body.job_id !== job.id) return res.status(409).json({ error: "Ο έλεγχος άλλαξε - ξαναφόρτωσε τη σελίδα." });
+  if (!job.summary.can_apply) return res.status(409).json({ error: "Η εφαρμογή είναι μπλοκαρισμένη: " + job.summary.blockers.join(" ") });
+  if (req.body.confirm !== true) return res.status(400).json({ error: "Χρειάζεται επιβεβαίωση." });
+  // The catalog must not have changed since the check started (e.g. another apply,
+  // a rollback or a new package) - otherwise the reviewed diff no longer describes it.
+  const sameBase = (catalogStore.meta && catalogStore.meta.checked_at) === job.base_checked_at &&
+    job.base_slugs.length === ALL_PROGRAMS.length && job.base_slugs.every((s, i) => ALL_PROGRAMS[i].slug === s);
+  if (!sameBase) return res.status(409).json({ error: "Ο κατάλογος άλλαξε μετά τον έλεγχο. Τρέξε νέο έλεγχο." });
+  try {
+    setCatalog(catalogStore.apply(job.candidate, { job_id: job.id, mode: job.mode }));
+    quickCheckCache = null;
+    job.state = "applied";
+    job.candidate = null;
+    res.json({ ok: true, live: liveCatalogInfo() });
+  } catch (e) {
+    console.error("Εφαρμογή καταλόγου απέτυχε:", e);
+    res.status(500).json({ error: "Αποτυχία εφαρμογής στον server." });
+  }
+});
+
+app.post("/api/admin/catalog/rollback", adminLimiter, checkAdminToken, (req, res) => {
+  if (catalogJob && ["running", "comparing"].includes(catalogJob.state)) {
+    return res.status(409).json({ error: "Τρέχει έλεγχος - περίμενε να ολοκληρωθεί." });
+  }
+  try {
+    const file = req.body && typeof req.body.file === "string" ? req.body.file : undefined;
+    setCatalog(catalogStore.rollback(file));
+    quickCheckCache = null;
+    if (catalogJob && catalogJob.state === "done") catalogJob.state = "stale";
+    res.json({ ok: true, live: liveCatalogInfo() });
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
+// Lightweight reminder for the admin tab: one request to "Τρέχων Κύκλος", cached 6h.
+app.get("/api/admin/catalog/quick", catalogStatusLimiter, checkAdminToken, async (req, res) => {
+  if (quickCheckCache && Date.now() - quickCheckCache.at < 6 * 3600 * 1000) return res.json(quickCheckCache.result);
+  try {
+    const check = await CatalogSync.checkCatalog(ALL_PROGRAMS, { withPrices: false, siteOrigin: CATALOG_SITE_ORIGIN, retryDelaysMs: [2000] });
+    if (!check.ok) return res.status(502).json({ error: check.error });
+    const { summary, diff } = CatalogSync.buildCandidate(ALL_PROGRAMS, check);
+    const result = {
+      checked_at: check.finishedAt,
+      in_cycle: summary.in_cycle,
+      to_hide: diff.deactivated.map((x) => x.title),
+      to_show: diff.reactivated.map((x) => x.title),
+      new_in_cycle: diff.new_in_cycle.map((x) => x.title),
+      needs_check: diff.deactivated.length + diff.reactivated.length + diff.new_in_cycle.length > 0,
+    };
+    quickCheckCache = { at: Date.now(), result };
+    res.json(result);
+  } catch (e) {
+    res.status(502).json({ error: "Ο γρήγορος έλεγχος απέτυχε." });
+  }
+});
+
 app.use((err, req, res, next) => {
   if (err && /^CORS:/.test(err.message)) {
     return res.status(403).json({ error: err.message });

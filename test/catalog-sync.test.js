@@ -215,3 +215,14 @@ test("catalog-sync: a hidden program whose page is still closed is not reported 
   assert.deepEqual(diff.reactivated, []);
   assert.deepEqual(diff.deactivated, []);
 });
+
+test("catalog-sync: a status-only check never un-hides a program hidden by its own page", () => {
+  const programs = catalog().map((p) => (p.slug === "alpha" ? { ...p, status: "inactive", status_source: "course-page" } : p));
+  const { candidate, diff } = Sync.buildCandidate(programs, check({ cycleSlugs: ["alpha", "beta", "gamma"], withPrices: false }));
+  assert.equal(candidate[0].status, "inactive");
+  assert.deepEqual(diff.reactivated, []);
+  // ...but a full check that sees the page open again does reactivate it
+  const full = Sync.buildCandidate(programs, check({ cycleSlugs: ["alpha", "beta", "gamma"], pages: { alpha: { http: 200, has_jsonld: true, unavailable: false, price: 1 } } }));
+  assert.equal(full.candidate[0].status, "active");
+  assert.deepEqual(full.diff.reactivated.map((x) => x.slug), ["alpha"]);
+});

@@ -7,6 +7,16 @@ const os = require("node:os");
 const path = require("node:path");
 const { spawn } = require("node:child_process");
 
+// Ask the OS for a free port (random ranges can collide when test files run in parallel).
+function freePort() {
+  return new Promise((resolve, reject) => {
+    const s = require("node:net").createServer();
+    s.unref();
+    s.on("error", reject);
+    s.listen(0, "127.0.0.1", () => { const { port } = s.address(); s.close(() => resolve(port)); });
+  });
+}
+
 const ROOT = path.join(__dirname, "..");
 const full = JSON.parse(fs.readFileSync(path.join(ROOT, "public/programs.json"), "utf8"));
 const HIDDEN = full.find((p) => /ψυχολογ/i.test(p.title));
@@ -22,7 +32,7 @@ test.before(async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "sf-inactive-"));
   const file = path.join(dir, "programs.json");
   fs.writeFileSync(file, JSON.stringify(catalog));
-  const port = 40000 + Math.floor(Math.random() * 20000);
+  const port = await freePort();
   base = `http://127.0.0.1:${port}`;
   server = spawn(process.execPath, [path.join(ROOT, "server/server.js")], {
     env: { ...process.env, PORT: String(port), PROGRAMS_FILE: file, DATA_DIR: path.join(dir, "data"), ADMIN_TOKEN: "" },

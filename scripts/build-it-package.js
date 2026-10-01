@@ -27,7 +27,7 @@ const ROOT = path.join(__dirname, "..");
 const PROD_BACKEND = "https://smartfinder.elearningekpa.gr";
 const WIDGET_FILE = "release/gtm/ekpa-search-widget-gtm-v25-PRODUCTION.txt";
 const ROOT_DOCS = [
-  "ADMIN-PANEL-GUIDE.md", "API-KEY-SETUP.md", "ARCHITECTURE.md", "DEPLOY-Railway.md",
+  "ADMIN-PANEL-GUIDE.md", "ADMIN-CATALOG-GUIDE.md", "API-KEY-SETUP.md", "ARCHITECTURE.md", "DEPLOY-Railway.md",
   "DEPLOY-SelfHosted.md", "GTMREADME.md", "HANDOVER-NOTES.md", "INSTALL-GUIDE.md",
 ];
 // Not shipped inside search-ekpa/: Brandery-internal docs and the release assets
@@ -74,7 +74,11 @@ function checkWidget(file) {
 
 // ---- Contract smoke test against the packaged backend ----
 async function smokeTest(backendDir) {
-  const port = 41000 + Math.floor(Math.random() * 15000);
+  const port = await new Promise((resolve, reject) => {
+    const s = require("node:net").createServer();
+    s.on("error", reject);
+    s.listen(0, "127.0.0.1", () => { const { port: p } = s.address(); s.close(() => resolve(p)); });
+  });
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), "sf-pkg-data-"));
   const server = spawn(process.execPath, ["server/server.js"], {
     cwd: backendDir,
@@ -191,7 +195,7 @@ async function main() {
     fs.unlinkSync(path.join(backend, "node_modules"));
 
     // Top-level docs + release assets.
-    for (const f of ROOT_DOCS) fs.copyFileSync(path.join(backend, f), path.join(pkg, f));
+    for (const f of ROOT_DOCS) if (fs.existsSync(path.join(backend, f))) fs.copyFileSync(path.join(backend, f), path.join(pkg, f));
     const addenda = fs.readdirSync(path.join(ROOT, "release/it-docs")).filter((f) => f.endsWith(".md")).sort();
     for (const f of addenda) fs.copyFileSync(path.join(ROOT, "release/it-docs", f), path.join(pkg, f));
     fs.copyFileSync(widget, path.join(pkg, path.basename(WIDGET_FILE)));
@@ -203,7 +207,7 @@ async function main() {
     step(`Έλεγχος περιεχομένου: ${files.length} αρχεία, κανένα απαγορευμένο`);
 
     // 7. Manifest.
-    const keyFiles = ["server/server.js", "server/search-api-contract.js", "server/catalog-sync.js", "public/search-engine.js", "public/concepts.json", "public/programs.json", "public/index.html"]
+    const keyFiles = ["server/server.js", "server/search-api-contract.js", "server/catalog-sync.js", "server/catalog-store.js", "server/program-enrich.js", "server/ranking-diff.js", "public/search-engine.js", "public/concepts.json", "public/programs.json", "public/index.html"]
       .filter((f) => fs.existsSync(path.join(backend, f)));
     const manifest = [
       `EKPA SMART FINDER — PRODUCTION HANDOFF — ${date}`,

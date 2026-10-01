@@ -54,6 +54,22 @@ table.data-table tr:hover td{background:#fafcff}
 .badge-num{font-family:Menlo,Consolas,monospace;font-weight:bold}
 .analytics-section{margin-bottom:24px}
 .analytics-section h4{margin:0 0 8px}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin:12px 0}
+.kpi{border:1px solid var(--border);border-radius:12px;padding:10px 12px;background:#fff}
+.kpi b{display:block;font-size:22px;color:var(--dark)}
+.kpi span{font-size:12.5px;color:var(--muted)}
+.progress{height:10px;background:#eef2f6;border-radius:999px;overflow:hidden;margin:10px 0}
+.progress>div{height:100%;background:var(--blue);width:0;transition:width .4s}
+.banner{border-radius:12px;padding:12px 14px;margin:10px 0;font-size:14px}
+.banner.warn{background:#fff4e5;color:var(--amber)}
+.banner.ok{background:#ecfdf3;color:var(--green)}
+.banner.err{background:#fdecec;color:var(--red)}
+details.change-list{border:1px solid var(--border);border-radius:10px;padding:8px 12px;margin:6px 0;background:#fff}
+details.change-list summary{cursor:pointer;font-size:14px}
+details.change-list ul{margin:8px 0 4px 18px;padding:0;font-size:13px}
+.ranking-q{margin:8px 0 2px;font-weight:bold;font-size:13.5px}
+.ranking-q small{font-weight:normal;color:var(--muted)}
+.plus{color:var(--green)}.minus{color:var(--red)}
 </style>
 </head>
 <body>
@@ -79,6 +95,7 @@ table.data-table tr:hover td{background:#fafcff}
   <div class="tabs">
     <button class="tab-btn active" id="tabBtnTaxonomy" type="button">🏷️ Taxonomy</button>
     <button class="tab-btn" id="tabBtnAnalytics" type="button">📊 Analytics</button>
+    <button class="tab-btn" id="tabBtnCatalog" type="button">📚 Κατάλογος</button>
   </div>
 
   <div id="tab-taxonomy">
@@ -115,6 +132,28 @@ table.data-table tr:hover td{background:#fafcff}
     </section>
   </div>
 
+  <div id="tab-catalog" style="display:none">
+    <section class="panel">
+      <h3 style="margin-top:0">📚 Κατάλογος προγραμμάτων</h3>
+      <div id="catalogLive"><p class="hint">Ξεκλείδωσε πρώτα με το admin token από πάνω.</p></div>
+      <div id="catalogQuick"></div>
+      <div class="toolbar">
+        <button class="btn btn-primary" id="catalogCheckBtn" disabled>🔍 Έλεγχος καταλόγου</button>
+        <button class="btn btn-secondary" id="catalogQuickCheckBtn" disabled>⚡ Μόνο ποια είναι ενεργά (γρήγορο)</button>
+        <button class="btn btn-secondary" id="catalogRefreshBtn" disabled>🔄 Ανανέωση</button>
+      </div>
+      <div class="hint">Ο πλήρης έλεγχος διαβάζει τη σελίδα κάθε ενεργού προγράμματος στο elearningekpa.gr (τιμές, προθεσμίες, νέα προγράμματα, κενά πεδία). Γίνεται αργά για να μην επιβαρύνεται το site: περίπου 25 λεπτά. Μπορείς να κλείσεις τη σελίδα και να γυρίσεις αργότερα. Τίποτα δεν αλλάζει πριν πατήσεις «Εφαρμογή».</div>
+      <div id="catalogStatus" class="status"></div>
+    </section>
+    <section class="panel" id="catalogJobPanel" style="display:none">
+      <div id="catalogJob"></div>
+    </section>
+    <section class="panel" id="catalogBackupsPanel" style="display:none">
+      <h3 style="margin-top:0">↩️ Επαναφορά</h3>
+      <div id="catalogBackups"></div>
+    </section>
+  </div>
+
 </main>
 
 <script>
@@ -129,17 +168,20 @@ const counterEl = document.getElementById("counter");
 const lockStatusEl = document.getElementById("lockStatus");
 
 // ---- Tabs ----
-const tabBtnTaxonomy = document.getElementById("tabBtnTaxonomy");
-const tabBtnAnalytics = document.getElementById("tabBtnAnalytics");
-const tabTaxonomy = document.getElementById("tab-taxonomy");
-const tabAnalytics = document.getElementById("tab-analytics");
-tabBtnTaxonomy.addEventListener("click", () => {
-  tabBtnTaxonomy.classList.add("active"); tabBtnAnalytics.classList.remove("active");
-  tabTaxonomy.style.display = ""; tabAnalytics.style.display = "none";
-});
-tabBtnAnalytics.addEventListener("click", () => {
-  tabBtnAnalytics.classList.add("active"); tabBtnTaxonomy.classList.remove("active");
-  tabAnalytics.style.display = ""; tabTaxonomy.style.display = "none";
+const TABS = [
+  ["tabBtnTaxonomy", "tab-taxonomy"],
+  ["tabBtnAnalytics", "tab-analytics"],
+  ["tabBtnCatalog", "tab-catalog"],
+];
+TABS.forEach(([btnId]) => {
+  document.getElementById(btnId).addEventListener("click", () => {
+    TABS.forEach(([b, panel]) => {
+      const on = b === btnId;
+      document.getElementById(b).classList.toggle("active", on);
+      document.getElementById(panel).style.display = on ? "" : "none";
+    });
+    if (btnId === "tabBtnCatalog" && adminToken) loadCatalog(true);
+  });
 });
 
 function showStatus(msg, type) {
@@ -250,7 +292,9 @@ document.getElementById("unlockBtn").addEventListener("click", () => {
   adminToken = val;
   lockStatusEl.textContent = "🔓 Ξεκλειδωμένο για αποθήκευση";
   saveBtn.disabled = !dirty;
+  ["catalogCheckBtn", "catalogQuickCheckBtn", "catalogRefreshBtn"].forEach((id) => { document.getElementById(id).disabled = false; });
   showStatus("Token αποθηκεύτηκε για αυτή τη σελίδα (όχι μόνιμα) — μπορείς να αποθηκεύσεις αλλαγές.", "ok");
+  if (document.getElementById("tab-catalog").style.display !== "none") loadCatalog(true);
 });
 
 // ---- Analytics tab ----
@@ -362,6 +406,215 @@ saveBtn.addEventListener("click", async () => {
     saveBtn.disabled = !adminToken;
   }
 });
+
+
+// ---- Catalog tab ----
+const SOURCE_LABEL = { package: "από το πακέτο", check: "από έλεγχο (κουμπί)", rollback: "από επαναφορά" };
+let catalogPoll = null;
+let currentJob = null;
+
+function fmtDate(iso) {
+  if (!iso) return "—";
+  try { return new Date(iso).toLocaleString("el-GR", { dateStyle: "short", timeStyle: "short" }); } catch (e) { return iso; }
+}
+function showCatalogStatus(msg, type) {
+  const el = document.getElementById("catalogStatus");
+  el.textContent = msg;
+  el.className = "status " + (type || "");
+}
+async function catalogApi(method, url, body) {
+  const resp = await fetch(url, {
+    method,
+    headers: { "Content-Type": "application/json", "x-admin-token": adminToken },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  const data = await resp.json().catch(() => null);
+  if (!resp.ok) throw new Error((data && data.error) || `HTTP ${resp.status}`);
+  return data;
+}
+function list(title, items, fmt, open) {
+  if (!items || !items.length) return "";
+  const shown = items.slice(0, 200).map((x) => `<li>${esc(fmt(x))}</li>`).join("");
+  const more = items.length > 200 ? `<li>… και άλλα ${items.length - 200}</li>` : "";
+  return `<details class="change-list"${open ? " open" : ""}><summary>${esc(title)}: <b>${items.length}</b></summary><ul>${shown}${more}</ul></details>`;
+}
+
+function renderLive(live) {
+  document.getElementById("catalogLive").innerHTML = `
+    <div class="kpis">
+      <div class="kpi"><b>${live.active}</b><span>ενεργά (εμφανίζονται)</span></div>
+      <div class="kpi"><b>${live.inactive}</b><span>κρυμμένα (δεν δέχονται αιτήσεις)</span></div>
+      <div class="kpi"><b>${esc(SOURCE_LABEL[live.source] || live.source || "—")}</b><span>προέλευση καταλόγου</span></div>
+      <div class="kpi"><b>${esc(fmtDate(live.checked_at))}</b><span>ημερομηνία ελέγχου</span></div>
+    </div>
+    ${live.can_apply_here ? "" : '<div class="banner err">Ο server δεν έχει DATA_DIR: μπορείς να τρέξεις έλεγχο, αλλά όχι να τον εφαρμόσεις από εδώ.</div>'}`;
+}
+
+function renderRanking(r) {
+  if (!r) return "";
+  const groups = r.groups.map((g) => {
+    if (!g.changes.length) return "";
+    const items = g.changes.map((c) => {
+      const lines = [
+        ...c.added.map((a) => `<div class="plus">+ #${a.position} ${esc(a.title)}${a.filled ? " <small>(συμπληρώθηκε/νέο)</small>" : ""}</div>`),
+        ...c.removed.map((x) => `<div class="minus">− ήταν #${x.position} ${esc(x.title)}</div>`),
+      ];
+      return `<div class="ranking-q">«${esc(c.query)}» <small>σύνολο ${c.total_before} → ${c.total_after}</small></div>${lines.join("") || '<div class="hint">ίδια προγράμματα, άλλαξε μόνο η σειρά</div>'}`;
+    }).join("");
+    return `<details class="change-list"><summary>${esc(g.label)}: άλλαξαν <b>${g.changed}</b> από ${g.queries}</summary>${items}</details>`;
+  }).join("");
+  return `<h4>🔎 Αλλαγές στα αποτελέσματα αναζήτησης (top-10)</h4>
+    <p class="hint">Αλλάζουν ${r.changed} από ${r.queries} αναζητήσεις. Έλεγξε ότι τα προγράμματα που μπαίνουν είναι σχετικά.</p>${groups}`;
+}
+
+function renderJob(job) {
+  currentJob = job;
+  const panel = document.getElementById("catalogJobPanel");
+  const el = document.getElementById("catalogJob");
+  if (!job) { panel.style.display = "none"; return; }
+  panel.style.display = "";
+  const running = job.state === "running" || job.state === "comparing";
+  document.getElementById("catalogCheckBtn").disabled = running || !adminToken;
+  document.getElementById("catalogQuickCheckBtn").disabled = running || !adminToken;
+  if (running) {
+    const p = job.progress || {};
+    const pct = p.total ? Math.round((100 * p.done) / p.total) : 0;
+    el.innerHTML = `<h4 style="margin-top:0">⏳ ${job.mode === "status" ? "Γρήγορος έλεγχος" : "Πλήρης έλεγχος"} σε εξέλιξη</h4>
+      <div class="progress"><div style="width:${pct}%"></div></div>
+      <div class="hint">${job.state === "comparing" ? "Σύγκριση αποτελεσμάτων αναζήτησης…" : p.total ? `Σελίδες: ${p.done} / ${p.total}` : "Λήψη λίστας «Τρέχων Κύκλος»…"} · ξεκίνησε ${esc(fmtDate(job.started_at))}</div>`;
+    return;
+  }
+  if (job.state === "failed") {
+    el.innerHTML = `<div class="banner err">❌ Ο έλεγχος απέτυχε: ${esc(job.error || "")}. Δοκίμασε ξανά αργότερα.</div>`;
+    return;
+  }
+  if (job.state === "applied") {
+    el.innerHTML = `<div class="banner ok">✅ Ο έλεγχος της ${esc(fmtDate(job.finished_at))} εφαρμόστηκε.</div>`;
+    return;
+  }
+  if (job.state === "stale") {
+    el.innerHTML = `<div class="banner warn">Ο κατάλογος άλλαξε μετά από αυτόν τον έλεγχο. Τρέξε νέο έλεγχο.</div>`;
+    return;
+  }
+  const s = job.summary, d = job.diff;
+  const blocked = !s.can_apply;
+  el.innerHTML = `<h4 style="margin-top:0">📋 Αποτέλεσμα ελέγχου · ${esc(fmtDate(job.finished_at))}</h4>
+    <div class="kpis">
+      <div class="kpi"><b>${s.active_after}</b><span>ενεργά μετά</span></div>
+      <div class="kpi"><b>${s.deactivated}</b><span>θα κρυφτούν</span></div>
+      <div class="kpi"><b>${s.reactivated}</b><span>θα επανεμφανιστούν</span></div>
+      <div class="kpi"><b>${s.new_added}</b><span>νέα προγράμματα</span></div>
+      <div class="kpi"><b>${s.price_filled + s.price_changed}</b><span>τιμές (νέες/αλλαγμένες)</span></div>
+      <div class="kpi"><b>${s.gaps_filled}</b><span>με κενά που συμπληρώνονται</span></div>
+    </div>
+    ${list("− Κρύβονται", d.deactivated, (x) => x.title, true)}
+    ${list("+ Επανεμφανίζονται", d.reactivated, (x) => x.title, true)}
+    ${list("★ Νέα προγράμματα που προστίθενται", d.new_added, (x) => `${x.title} [${x.primary_area || "χωρίς κατηγορία"}]`, true)}
+    ${list("★ Νέα στον κύκλο που ΔΕΝ προστέθηκαν", d.new_not_added, (x) => `${x.title} (${x.reason})`, true)}
+    ${list("€ Τιμές που συμπληρώθηκαν", d.price_filled, (x) => `${x.slug}: ${x.price}€`)}
+    ${list("€ Τιμές που άλλαξαν", d.price_changed, (x) => `${x.slug}: ${x.from}€ → ${x.to}€`)}
+    ${list("⚠ Μεγάλη αλλαγή τιμής (>30%)", d.price_flagged, (x) => `${x.slug}: ${x.from}€ → ${x.to}€`, true)}
+    ${list("◆ Κενά πεδία που συμπληρώνονται", d.gaps_filled, (x) => `${x.slug}: ${x.fields.join(", ")}`)}
+    ${list("⚠ Σελίδες που δεν φορτώθηκαν (κρατήθηκαν τα παλιά στοιχεία)", d.page_errors, (x) => `${x.slug}: HTTP ${x.http}`, true)}
+    ${list("ℹ Κατηγορία του site διαφορετική από τη δική μας (δεν αλλάζει)", d.category_differs, (x) => `${x.slug}: εμείς «${x.ours}», site «${x.site}»`)}
+    ${renderRanking(job.ranking)}
+    ${blocked ? `<div class="banner err">⛔ Η εφαρμογή είναι κλειδωμένη: ${esc(s.blockers.join(" "))}</div>` : ""}
+    <div class="toolbar" style="margin-top:14px">
+      <button class="btn btn-primary" id="catalogApplyBtn" ${blocked ? "disabled" : ""}>✅ Εφαρμογή</button>
+      <span class="hint">Πριν την εφαρμογή κρατιέται αυτόματα backup του τρέχοντος καταλόγου.</span>
+    </div>`;
+  const applyBtn = document.getElementById("catalogApplyBtn");
+  if (applyBtn) applyBtn.addEventListener("click", applyCatalog);
+}
+
+function renderBackups(backups) {
+  const panel = document.getElementById("catalogBackupsPanel");
+  if (!backups || !backups.length) { panel.style.display = "none"; return; }
+  panel.style.display = "";
+  const REASON = { "before-apply": "πριν από εφαρμογή", "before-rollback": "πριν από επαναφορά", "replaced-by-package": "αντικαταστάθηκε από νέο πακέτο" };
+  document.getElementById("catalogBackups").innerHTML = `<table class="data-table"><thead><tr><th>Αποθηκεύτηκε</th><th>Κατάλογος ελέγχου</th><th>Λόγος</th><th></th></tr></thead><tbody>${
+    backups.map((b) => `<tr><td>${esc(fmtDate(b.saved_at))}</td><td>${esc(fmtDate(b.checked_at))}</td><td>${esc(REASON[b.reason] || b.reason || "")}</td><td><button class="btn btn-secondary rollbackBtn" data-file="${esc(b.file)}">Επαναφορά</button></td></tr>`).join("")
+  }</tbody></table>`;
+  document.querySelectorAll(".rollbackBtn").forEach((btn) => btn.addEventListener("click", () => rollbackCatalog(btn.dataset.file)));
+}
+
+async function loadCatalog(withQuick) {
+  if (!adminToken) return;
+  try {
+    const data = await catalogApi("GET", "/api/admin/catalog");
+    renderLive(data.live);
+    renderJob(data.job);
+    renderBackups(data.backups);
+    const running = data.job && (data.job.state === "running" || data.job.state === "comparing");
+    clearTimeout(catalogPoll);
+    if (running) catalogPoll = setTimeout(() => loadCatalog(false), 3000);
+    if (withQuick && !running) loadQuick();
+  } catch (err) {
+    showCatalogStatus("Αποτυχία φόρτωσης: " + err.message, "err");
+  }
+}
+
+async function loadQuick() {
+  const el = document.getElementById("catalogQuick");
+  try {
+    const q = await catalogApi("GET", "/api/admin/catalog/quick");
+    if (!q.needs_check) {
+      el.innerHTML = `<div class="banner ok">✓ Ο κατάλογος συμφωνεί με τον «Τρέχοντα Κύκλο» του site (${q.in_cycle} προγράμματα, έλεγχος ${esc(fmtDate(q.checked_at))}).</div>`;
+      return;
+    }
+    const parts = [];
+    if (q.to_hide.length) parts.push(`${q.to_hide.length} πρέπει να κρυφτούν`);
+    if (q.to_show.length) parts.push(`${q.to_show.length} να επανεμφανιστούν`);
+    if (q.new_in_cycle.length) parts.push(`${q.new_in_cycle.length} νέα`);
+    el.innerHTML = `<div class="banner warn">⚠ Ο «Τρέχων Κύκλος» του site έχει αλλαγές (${esc(parts.join(", "))}). Προτείνεται έλεγχος καταλόγου.</div>`;
+  } catch (err) {
+    el.innerHTML = "";
+  }
+}
+
+async function startCheck(mode) {
+  if (mode === "full" && !window.confirm("Ο πλήρης έλεγχος διαρκεί περίπου 25 λεπτά και τρέχει στο παρασκήνιο. Να ξεκινήσει;")) return;
+  try {
+    const data = await catalogApi("POST", "/api/admin/catalog/check", { mode });
+    showCatalogStatus("Ο έλεγχος ξεκίνησε.", "ok");
+    renderJob(data.job);
+    clearTimeout(catalogPoll);
+    catalogPoll = setTimeout(() => loadCatalog(false), 1500);
+  } catch (err) {
+    showCatalogStatus("Δεν ξεκίνησε ο έλεγχος: " + err.message, "err");
+  }
+}
+
+async function applyCatalog() {
+  if (!currentJob) return;
+  const s = currentJob.summary;
+  const ok = window.confirm(
+    `Εφαρμογή του ελέγχου;\n\n• Ενεργά μετά: ${s.active_after}\n• Κρύβονται: ${s.deactivated} · Επανεμφανίζονται: ${s.reactivated}\n• Νέα: ${s.new_added}\n• Αλλαγές στα αποτελέσματα: ${currentJob.ranking ? currentJob.ranking.changed : "—"} αναζητήσεις\n\nΟι αλλαγές ισχύουν αμέσως για τους επισκέπτες. Κρατιέται backup του τρέχοντος καταλόγου.`
+  );
+  if (!ok) return;
+  try {
+    await catalogApi("POST", "/api/admin/catalog/apply", { job_id: currentJob.id, confirm: true });
+    showCatalogStatus("✅ Εφαρμόστηκε. Οι αλλαγές ισχύουν ήδη στην αναζήτηση.", "ok");
+    loadCatalog(true);
+  } catch (err) {
+    showCatalogStatus("Αποτυχία εφαρμογής: " + err.message, "err");
+  }
+}
+
+async function rollbackCatalog(file) {
+  if (!window.confirm("Επαναφορά σε αυτόν τον κατάλογο; Ο τρέχων κατάλογος κρατιέται ως backup.")) return;
+  try {
+    await catalogApi("POST", "/api/admin/catalog/rollback", { file });
+    showCatalogStatus("↩️ Έγινε επαναφορά.", "ok");
+    loadCatalog(true);
+  } catch (err) {
+    showCatalogStatus("Αποτυχία επαναφοράς: " + err.message, "err");
+  }
+}
+
+document.getElementById("catalogCheckBtn").addEventListener("click", () => startCheck("full"));
+document.getElementById("catalogQuickCheckBtn").addEventListener("click", () => startCheck("status"));
+document.getElementById("catalogRefreshBtn").addEventListener("click", () => loadCatalog(true));
 
 // ---- initial load ----
 (async function init() {

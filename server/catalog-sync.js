@@ -164,7 +164,9 @@ async function checkCatalog(programs, options = {}) {
   const opts = { ...DEFAULTS, fetchImpl: globalThis.fetch, withPrices: true, onProgress: () => {}, ...options };
   const startedAt = new Date().toISOString();
 
-  const schedule = await fetchText(COURSE_SCHEDULE_URL, opts);
+  // siteOrigin is overridable only so tests can point at a local fake site.
+  const origin = opts.siteOrigin || SITE_ORIGIN;
+  const schedule = await fetchText(origin === SITE_ORIGIN ? COURSE_SCHEDULE_URL : `${origin}/course-schedule`, opts);
   if (schedule.status !== 200) {
     return { ok: false, error: `Η σελίδα «Τρέχων Κύκλος» δεν φορτώθηκε (HTTP ${schedule.status}).`, startedAt };
   }
@@ -182,7 +184,7 @@ async function checkCatalog(programs, options = {}) {
     ];
     for (let i = 0; i < targets.length; i++) {
       const p = targets[i];
-      const r = await fetchText(p.url || `${SITE_ORIGIN}/courses/${p.slug}`, opts);
+      const r = await fetchText(`${origin}/courses/${encodeURIComponent(p.slug)}`, opts);
       pages[p.slug] = r.status === 200 ? { http: 200, ...parseCoursePage(r.text) } : { http: r.status };
       opts.onProgress({ done: i + 1, total: targets.length, slug: p.slug });
       if (i < targets.length - 1) await sleep(opts.delayMs);
@@ -230,6 +232,12 @@ function buildCandidate(programs, check, options = {}) {
     p.status = inCycle ? "active" : "inactive";
     p.status_source = "course-schedule";
     p.status_checked_at = checkedAt;
+    // A status-only check cannot see program pages, so it must not un-hide a program
+    // that was hidden BY its page ("δεν είναι διαθέσιμο", e.g. its own deadline passed).
+    if (inCycle && !check.withPrices && !wasActive && orig.status_source === "course-page") {
+      p.status = "inactive";
+      p.status_source = "course-page";
+    }
 
     const page = check.pages[p.slug];
     if (inCycle && check.withPrices) {
