@@ -1,0 +1,166 @@
+{
+  "schema_version": 1,
+  "stopwords": [
+    "και",
+    "για",
+    "της",
+    "του",
+    "τον",
+    "το",
+    "τα",
+    "την",
+    "με",
+    "από",
+    "στο",
+    "στη",
+    "στην",
+    "στον",
+    "στα",
+    "είναι",
+    "ένα",
+    "μια",
+    "αλλά",
+    "να",
+    "κάτι",
+    "θέλω",
+    "ψάχνω",
+    "ήθελα",
+    "μπορώ",
+    "μπορείτε",
+    "προτείνετε",
+    "κάποιο",
+    "κάποια",
+    "είμαι",
+    "that",
+    "and",
+    "the",
+    "of",
+    "in",
+    "for",
+    "to",
+    "a",
+    "an",
+    "with",
+    "on",
+    "πρόγραμμα",
+    "προγράμματα",
+    "program",
+    "programs"
+  ],
+  "category_words": [
+    {
+      "word": "μάρκετινγκ",
+      "category": "Marketing και Πωλήσεις"
+    },
+    {
+      "word": "τουρισμός",
+      "category": "Τουριστικά"
+    },
+    {
+      "word": "μοριοδότησης",
+      "category": "Μοριοδοτούμενα Προγράμματα Παιδαγωγικών & Ειδικής Αγωγής"
+    },
+    {
+      "word": "μοριοδότηση",
+      "category": "Μοριοδοτούμενα Προγράμματα Παιδαγωγικών & Ειδικής Αγωγής"
+    },
+    {
+      "word": "ναυτικός",
+      "category": "Ναυτιλιακά"
+    },
+    {
+      "word": "ναυτικοί",
+      "category": "Ναυτιλιακά"
+    },
+    {
+      "word": "ναυτικούς",
+      "category": "Ναυτιλιακά"
+    },
+    {
+      "word": "ναυτικού",
+      "category": "Ναυτιλιακά"
+    },
+    {
+      "word": "ναυτικών",
+      "category": "Ναυτιλιακά"
+    },
+    {
+      "word": "ηθοποιός",
+      "category": "Κινηματογράφος - Θέατρο"
+    },
+    {
+      "word": "ηθοποιοί",
+      "category": "Κινηματογράφος - Θέατρο"
+    },
+    {
+      "word": "ηθοποιούς",
+      "category": "Κινηματογράφος - Θέατρο"
+    },
+    {
+      "word": "ηθοποιού",
+      "category": "Κινηματογράφος - Θέατρο"
+    },
+    {
+      "word": "ηθοποιών",
+      "category": "Κινηματογράφος - Θέατρο"
+    }
+  ],
+  "audience_categories": [
+    {
+      "id": "teacher",
+      "words": [
+        "δάσκαλος",
+        "δασκάλα",
+        "δάσκαλοι",
+        "δασκάλες",
+        "δασκάλους",
+        "δασκάλου",
+        "εκπαιδευτικός",
+        "εκπαιδευτικού",
+        "εκπαιδευτικοί",
+        "εκπαιδευτικούς",
+        "εκπαιδευτικών"
+      ],
+      "categories": [
+        "Παιδαγωγικά",
+        "Μοριοδοτούμενα Προγράμματα Παιδαγωγικών & Ειδικής Αγωγής"
+      ]
+    }
+  ],
+  "audience_programs": [
+    {
+      "id": "philologist",
+      "words": [
+        "φιλόλογος",
+        "φιλόλογο",
+        "φιλολόγου",
+        "φιλόλογοι",
+        "φιλολόγους"
+      ],
+      "programs": [
+        "arxaia-ellhnika-gia-arxarious",
+        "didaktiki-neoellinikon-keimenon",
+        "methodologia-kai-didaktiki-tis-hstorias",
+        "oi-piges-tou-hstorikou-ereunontas-tin-elliniki-hstoria-tou-20ou-aiona",
+        "neoteri-kai-sugxroni-elliniki-hstoria-1821-2021-tomes-kai-gegonota",
+        "anagnosi-filanagnosia-kai-paidiki-logotexnia",
+        "h-epidimia-os-thema-kai-os-metafora-sti-logotexnia"
+      ]
+    }
+  ],
+  "topics": [
+    {
+      "id": "cooking",
+      "words": [
+        "chef",
+        "σεφ",
+        "μαγειρική",
+        "μαγειρικής"
+      ],
+      "programs": [
+        "epaggelmatikh-mageirikh-sugxronh-kouzina",
+        "epaggelmatikh-mageirikh-ellhnikh-kouzina"
+      ]
+    }
+  ]
+}
