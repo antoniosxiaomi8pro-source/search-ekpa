@@ -5,3 +5,4 @@ npm-debug.log*
 server/analytics.json
 data/
 *.tmp
+old search engine ekpa/
