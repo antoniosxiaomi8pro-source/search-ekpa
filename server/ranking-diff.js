@@ -91,4 +91,4 @@ function toText(result, header = []) {
   return out.join("\n") + "\n";
 }
 
-module.exports = { compareRankings, compareRankingsAsync, toText };
+module.exports = { compareRankings, compareRankingsAsync, toText, querySet };

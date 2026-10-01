@@ -384,7 +384,7 @@
     };
   }
 
-  const indexCache = new WeakMap();
+  let indexCache = new WeakMap(); // replaced by setLexicon()
   function getIndex(programs) {
     let idx = indexCache.get(programs);
     if (!idx) {
@@ -557,7 +557,7 @@
     return { categories, aliasMap };
   }
 
-  const categoryIndexCache = new WeakMap();
+  let categoryIndexCache = new WeakMap(); // replaced by setLexicon()
   function getCategoryIndex(programs) {
     let ci = categoryIndexCache.get(programs);
     if (!ci) { ci = buildCategoryIndex(programs); categoryIndexCache.set(programs, ci); }
@@ -723,23 +723,39 @@
     "φιλολογοις": "philologist",
   };
 
-  function explicitlyTargetsPhilologists(p) {
+  // Programs of an audience group that are NOT in its hand-picked list but whose description
+  // explicitly names the audience after "απευθύνεται" (e.g. philologists). The words to look
+  // for come from the lexicon (audience_programs[].scan_terms); a group without scan_terms
+  // has no such rule. Terms are matched as whole words on normalize()d text.
+  const AUDIENCE_SCAN_MARKER = "απευθυνεται";
+  const AUDIENCE_SCAN_SPAN = 900; // bounded span after each marker (audience lists can be long)
+  const AUDIENCE_SCAN_DEFAULT_TERMS = {
+    philologist: ["φιλολογ", "φιλολογος", "φιλολογοι", "φιλολογους", "φιλολογου", "φιλολογιας", "φιλολογιων", "φιλολογιες", "φιλολογικων"],
+  };
+  const AUDIENCE_SCAN_REGEX = {}; // audience id -> RegExp (kept in sync by setLexicon)
+  function buildScanRegex(terms) {
+    const alts = Array.from(new Set(terms.map((t) => normalize(t)).filter(Boolean)))
+      .sort((a, b) => b.length - a.length)
+      .map((t) => t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+    return alts.length ? new RegExp("(?<!\\p{L})(?:" + alts.join("|") + ")(?!\\p{L})", "u") : null;
+  }
+  Object.keys(AUDIENCE_SCAN_DEFAULT_TERMS).forEach((id) => { AUDIENCE_SCAN_REGEX[id] = buildScanRegex(AUDIENCE_SCAN_DEFAULT_TERMS[id]); });
+
+  function explicitlyTargetsAudience(p, audience) {
+    const re = AUDIENCE_SCAN_REGEX[audience];
+    if (!re) return false;
     const text = normalize([p.description_for_matching, p.description_full].filter(Boolean).join(" "));
     if (!text) return false;
-    // Audience lists can be long. Inspect a bounded span after each explicit
-    // "απευθύνεται" marker; 900 chars covers the real catalog's bullet lists while
-    // preventing unrelated later biography/metadata mentions from qualifying.
-    const marker = "απευθυνεται";
     let from = 0;
     while (true) {
-      const i = text.indexOf(marker, from);
+      const i = text.indexOf(AUDIENCE_SCAN_MARKER, from);
       if (i < 0) break;
-      const audienceSpan = text.slice(i, i + 900);
-      if (/(?<!\p{L})φιλολογ(?:ος|οι|ους|ου|ιας|ιων|ιες|ικων)?(?!\p{L})/u.test(audienceSpan)) return true;
-      from = i + marker.length;
+      if (re.test(text.slice(i, i + AUDIENCE_SCAN_SPAN))) return true;
+      from = i + AUDIENCE_SCAN_MARKER.length;
     }
     return false;
   }
+  function explicitlyTargetsPhilologists(p) { return explicitlyTargetsAudience(p, "philologist"); }
 
   function audienceProgramSlugs(programs, audience) {
     const seed = AUDIENCE_PROGRAM_SETS[audience] || [];
@@ -748,9 +764,9 @@
     seed.forEach((slug) => {
       if (!seen.has(slug) && programs.some((p) => p.slug === slug)) { seen.add(slug); out.push(slug); }
     });
-    if (audience === "philologist") {
+    if (AUDIENCE_SCAN_REGEX[audience]) {
       programs.forEach((p) => {
-        if (p.slug && !seen.has(p.slug) && explicitlyTargetsPhilologists(p)) {
+        if (p.slug && !seen.has(p.slug) && explicitlyTargetsAudience(p, audience)) {
           seen.add(p.slug); out.push(p.slug);
         }
       });
@@ -758,15 +774,20 @@
     return out;
   }
 
-  function resolveAudienceProgramIntent(programs, query) {
+  // { audience, slugs } for a single-word audience query, or null.
+  function resolveAudienceProgramIntentDetailed(programs, query) {
     for (const variant of queryVariants(query)) {
       const words = variant.split(" ").filter((w) => w.length >= 2 && !STOPWORDS.has(w));
       if (words.length !== 1) continue;
       const audience = AUDIENCE_PROGRAM_ALIASES[words[0]];
       if (!audience || !AUDIENCE_PROGRAM_SETS[audience]) continue;
-      return audienceProgramSlugs(programs, audience);
+      return { audience, slugs: audienceProgramSlugs(programs, audience) };
     }
     return null;
+  }
+  function resolveAudienceProgramIntent(programs, query) {
+    const r = resolveAudienceProgramIntentDetailed(programs, query);
+    return r ? r.slugs : null;
   }
 
   const TOPIC_SETS = {
@@ -807,13 +828,150 @@
     return null;
   }
 
+  // ---- Lexicon (R1) -------------------------------------------------------------------
+  // The tables above (stopwords, category words, audience words, topics) are the DEFAULT
+  // lexicon. A readable lexicon (public/lexicon.json, edited in the admin page) replaces
+  // them with setLexicon(). The tables are changed IN PLACE so every existing reference
+  // (including the exported STOPWORDS) stays valid, and every cache that depends on them
+  // is dropped - otherwise an edit would only show after a restart.
+  // Without setLexicon() nothing changes: the default tables are exactly the ones above.
+  const LEXICON_SCHEMA_VERSION = 1;
+  const LEXICON_MAX_WORDS = 5000;
+  const LEXICON_MAX_PROGRAMS = 2000;
+  const foldWord = (w) => foldGreek(normalize(w));
+  const replaceContents = (target, source) => { Object.keys(target).forEach((k) => delete target[k]); Object.assign(target, source); };
+  const cloneJson = (v) => JSON.parse(JSON.stringify(v));
+
+  function snapshotTables() {
+    const scan = {};
+    Object.keys(AUDIENCE_SCAN_DEFAULT_TERMS).forEach((id) => { scan[id] = AUDIENCE_SCAN_DEFAULT_TERMS[id].slice(); });
+    return {
+      stopwords: Array.from(STOPWORDS),
+      category: cloneJson(CATEGORY_ALIASES),
+      audienceMulti: cloneJson(AUDIENCE_MULTI_CATEGORY_ALIASES),
+      audienceSets: cloneJson(AUDIENCE_PROGRAM_SETS),
+      audienceAliases: cloneJson(AUDIENCE_PROGRAM_ALIASES),
+      topicSets: cloneJson(TOPIC_SETS),
+      topicAliases: cloneJson(TOPIC_ALIASES),
+      scan,
+    };
+  }
+  const DEFAULT_TABLES = snapshotTables();
+
+  function applyTables(t) {
+    STOPWORDS.clear();
+    t.stopwords.forEach((w) => STOPWORDS.add(w));
+    replaceContents(CATEGORY_ALIASES, t.category);
+    replaceContents(AUDIENCE_MULTI_CATEGORY_ALIASES, t.audienceMulti);
+    replaceContents(AUDIENCE_PROGRAM_SETS, t.audienceSets);
+    replaceContents(AUDIENCE_PROGRAM_ALIASES, t.audienceAliases);
+    replaceContents(TOPIC_SETS, t.topicSets);
+    replaceContents(TOPIC_ALIASES, t.topicAliases);
+    Object.keys(AUDIENCE_SCAN_REGEX).forEach((k) => delete AUDIENCE_SCAN_REGEX[k]);
+    Object.keys(t.scan).forEach((id) => { const re = buildScanRegex(t.scan[id]); if (re) AUDIENCE_SCAN_REGEX[id] = re; });
+    indexCache = new WeakMap();
+    categoryIndexCache = new WeakMap();
+    trustedTypoVocabularyCache = new WeakMap();
+  }
+
+  // Readable lexicon -> the engine's (folded) tables. Throws Error with a Greek message when
+  // the lexicon is not valid; nothing is applied in that case.
+  function compileLexicon(lex) {
+    const fail = (m) => { throw new Error("Μη έγκυρο λεξικό: " + m); };
+    if (!lex || typeof lex !== "object" || Array.isArray(lex)) fail("δεν είναι αντικείμενο.");
+    if (lex.schema_version !== LEXICON_SCHEMA_VERSION) fail("schema_version " + lex.schema_version + " (αναμενόταν " + LEXICON_SCHEMA_VERSION + ").");
+    for (const k of ["stopwords", "category_words", "audience_categories", "audience_programs", "topics"]) {
+      if (!Array.isArray(lex[k])) fail("λείπει η λίστα " + k + ".");
+    }
+    let totalWords = 0;
+    const word = (w, where) => {
+      if (typeof w !== "string" || !w.trim() || w.length > 100) fail("άκυρη λέξη στο " + where + ".");
+      const f = foldWord(w);
+      if (!f) fail("η λέξη «" + w + "» (" + where + ") δεν έχει γράμματα.");
+      if (++totalWords > LEXICON_MAX_WORDS) fail("πάνω από " + LEXICON_MAX_WORDS + " λέξεις.");
+      return f;
+    };
+    const strings = (arr, where, max) => {
+      if (!Array.isArray(arr) || !arr.length || arr.length > max || arr.some((x) => typeof x !== "string" || !x.trim())) fail("άκυρη λίστα στο " + where + ".");
+      return arr.slice();
+    };
+    const id = (g, where) => { if (!g || typeof g.id !== "string" || !/^[a-z0-9_-]{1,40}$/.test(g.id)) fail("άκυρο id στο " + where + "."); return g.id; };
+
+    const t = { stopwords: new Set(), category: {}, audienceMulti: {}, audienceSets: {}, audienceAliases: {}, topicSets: {}, topicAliases: {}, scan: {} };
+    const owner = {}; // folded word -> which table owns it
+    const claim = (f, table, original) => {
+      if (owner[f] && owner[f] !== table) fail("η λέξη «" + original + "» υπάρχει και στο «" + owner[f] + "» και στο «" + table + "».");
+      owner[f] = table;
+    };
+
+    lex.stopwords.forEach((w) => { const f = word(w, "stopwords"); t.stopwords.add(f); claim(f, "stopwords", w); });
+    lex.category_words.forEach((e) => {
+      const f = word(e && e.word, "category_words");
+      if (typeof e.category !== "string" || !e.category.trim()) fail("λείπει κατηγορία για τη λέξη «" + e.word + "».");
+      if (t.category[f] && t.category[f] !== e.category) fail("η λέξη «" + e.word + "» έχει δύο διαφορετικές κατηγορίες.");
+      t.category[f] = e.category; claim(f, "λέξη→κατηγορία", e.word);
+    });
+    lex.audience_categories.forEach((g) => {
+      id(g, "audience_categories");
+      const cats = strings(g.categories, "audience_categories.categories", 20);
+      strings(g.words, "audience_categories.words", LEXICON_MAX_WORDS).forEach((w) => {
+        const f = word(w, "audience_categories");
+        if (t.audienceMulti[f] && JSON.stringify(t.audienceMulti[f]) !== JSON.stringify(cats)) fail("η λέξη «" + w + "» έχει δύο διαφορετικά σύνολα κατηγοριών.");
+        t.audienceMulti[f] = cats; claim(f, "κοινό→κατηγορίες", w);
+      });
+    });
+    lex.audience_programs.forEach((g) => {
+      const gid = id(g, "audience_programs");
+      if (t.audienceSets[gid]) fail("διπλό id «" + gid + "» στο κοινό→προγράμματα.");
+      t.audienceSets[gid] = strings(g.programs, "audience_programs.programs", LEXICON_MAX_PROGRAMS);
+      strings(g.words, "audience_programs.words", LEXICON_MAX_WORDS).forEach((w) => {
+        const f = word(w, "audience_programs");
+        if (t.audienceAliases[f] && t.audienceAliases[f] !== gid) fail("η λέξη «" + w + "» οδηγεί σε δύο ομάδες κοινού.");
+        t.audienceAliases[f] = gid; claim(f, "κοινό→προγράμματα", w);
+      });
+      if (g.scan_terms !== undefined) {
+        t.scan[gid] = strings(g.scan_terms, "audience_programs.scan_terms", 100).map((x) => { const n = normalize(x); if (!n) fail("άκυρος όρος σάρωσης."); return n; });
+      }
+    });
+    lex.topics.forEach((g) => {
+      const gid = id(g, "topics");
+      if (t.topicSets[gid]) fail("διπλό id «" + gid + "» στα θέματα.");
+      t.topicSets[gid] = strings(g.programs, "topics.programs", LEXICON_MAX_PROGRAMS);
+      strings(g.words, "topics.words", LEXICON_MAX_WORDS).forEach((w) => {
+        const f = word(w, "topics");
+        if (t.topicAliases[f] && t.topicAliases[f] !== gid) fail("η λέξη «" + w + "» οδηγεί σε δύο θέματα.");
+        t.topicAliases[f] = gid; claim(f, "θέματα", w);
+      });
+    });
+    // A word that is both a stopword and an alias could never act as an alias (stopwords are dropped first).
+    Object.keys(owner).forEach((f) => {
+      if (owner[f] !== "stopwords" && t.stopwords.has(f)) fail("η λέξη «" + f + "» είναι και stopword και λέξη αντιστοίχισης.");
+    });
+    t.stopwords = Array.from(t.stopwords);
+    return t;
+  }
+
+  function setLexicon(lex) {
+    const t = compileLexicon(lex); // throws before anything changes
+    applyTables(t);
+    return {
+      stopwords: t.stopwords.length,
+      category_words: Object.keys(t.category).length,
+      audience_words: Object.keys(t.audienceMulti).length + Object.keys(t.audienceAliases).length,
+      topic_words: Object.keys(t.topicAliases).length,
+    };
+  }
+  function resetLexicon() { applyTables(DEFAULT_TABLES); }
+  function getLexiconTables() { return snapshotTables(); }
+  function getDefaultLexiconTables() { return cloneJson(DEFAULT_TABLES); }
+
   // Checkpoint G5: trusted typo recovery.
   //
   // This vocabulary is deliberately separate from buildVocabulary(). Official
   // taxonomy tokens may be very frequent, so adding them to the ordinary fuzzy
   // vocabulary would change already-correct searches. Here they are used only
   // as correction targets for a query token that is not already canonical.
-  const trustedTypoVocabularyCache = new WeakMap();
+  let trustedTypoVocabularyCache = new WeakMap(); // replaced by setLexicon()
 
   function buildTrustedTypoVocabulary(programs) {
     const cached = trustedTypoVocabularyCache.get(programs);
@@ -1008,7 +1166,8 @@
         }
         ranked.sort((a, b) => b.s - a.s || a.i - b.i);
       } else {
-        const audienceProgramSlugs = resolveAudienceProgramIntent(programs, query);
+        const audienceIntent = resolveAudienceProgramIntentDetailed(programs, query);
+        const audienceProgramSlugs = audienceIntent ? audienceIntent.slugs : null;
         const topicSlugs = audienceProgramSlugs || resolveTopicIntent(programs, query);
         if (topicSlugs && topicSlugs.length) {
           // Controlled topic set (Type B): the candidate set is EXACTLY the
@@ -1025,7 +1184,7 @@
             // recommendations; programs included solely because they explicitly name
             // the audience follow them. Within each tier, normal relevance scoring
             // and catalog order remain deterministic.
-            const thematicSeed = new Set(AUDIENCE_PROGRAM_SETS.philologist || []);
+            const thematicSeed = new Set(AUDIENCE_PROGRAM_SETS[audienceIntent.audience] || []);
             ranked.sort((a, b) => {
               const ap = thematicSeed.has(idx.entries[a.i].p.slug) ? 0 : 1;
               const bp = thematicSeed.has(idx.entries[b.i].p.slug) ? 0 : 1;
@@ -1078,5 +1237,6 @@
     expandQueryDetailed, containsTerm, score, search, rank, describeExpansion, getVocabulary, queryVariants,
     STOPWORDS, buildCategoryIndex, resolveCategoryIntent, programBelongsToCategory,
     resolveAudienceMultiCategoryIntent, resolveAudienceProgramIntent, explicitlyTargetsPhilologists, resolveTopicIntent,
+    setLexicon, resetLexicon, compileLexicon, getLexiconTables, getDefaultLexiconTables, LEXICON_SCHEMA_VERSION,
   };
 });

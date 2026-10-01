@@ -23,6 +23,8 @@ const SCHEMA_VERSION = 1;
 const STOPWORD_ORIGINALS = "και για της του τον το τα την με από στο στη στην στον στα είναι ένα μια αλλά να κάτι θέλω ψάχνω ήθελα μπορώ μπορείτε προτείνετε κάποιο κάποια είμαι that and the of in for to a an with on πρόγραμμα προγράμματα program programs".split(" ");
 const PHILOLOGIST_ORIGINALS = ["φιλόλογος", "φιλόλογο", "φιλολόγου", "φιλόλογοι", "φιλολόγους"];
 const COOKING_ORIGINALS = ["chef", "σεφ", "μαγειρική", "μαγειρικής"];
+// Words that make a program count for the audience when its description names them after "απευθύνεται".
+const PHILOLOGIST_SCAN_TERMS = ["φιλολογ", "φιλόλογος", "φιλόλογοι", "φιλολόγους", "φιλολόγου", "φιλολογίας", "φιλολογιών", "φιλολογίες", "φιλολογικών"];
 const OVERRIDES = { "μαρκετινγκ": "μάρκετινγκ" }; // comment says "greeklish/Greek transliteration"
 
 // The engine's tables, read from the engine source itself (not retyped).
@@ -78,46 +80,37 @@ function build() {
   const audience_categories = [{ id: "teacher", words: audKeys.map((k) => audOrig[k]), categories: targets.slice() }];
 
   // audience words -> specific programs
-  const audience_programs = [{ id: "philologist", words: PHILOLOGIST_ORIGINALS.slice(), programs: E.AUDIENCE_PROGRAM_SETS.philologist.slice() }];
+  const audience_programs = [{ id: "philologist", words: PHILOLOGIST_ORIGINALS.slice(), programs: E.AUDIENCE_PROGRAM_SETS.philologist.slice(), scan_terms: PHILOLOGIST_SCAN_TERMS.slice() }];
 
   // topics
   const topics = [{ id: "cooking", words: COOKING_ORIGINALS.slice(), programs: E.TOPIC_SETS.cooking.slice() }];
 
   const lexicon = { schema_version: SCHEMA_VERSION, stopwords, category_words, audience_categories, audience_programs, topics };
-  verify(lexicon, E, fold);
+  verify(lexicon, E);
   return lexicon;
 }
 
-// Compiles the human-readable lexicon back to the engine's folded tables.
-function compile(lexicon, fold) {
-  const t = { stopwords: new Set(), category: {}, audienceMulti: {}, audienceSets: {}, audienceAliases: {}, topicSets: {}, topicAliases: {} };
-  lexicon.stopwords.forEach((w) => t.stopwords.add(fold(w)));
-  lexicon.category_words.forEach((e) => { t.category[fold(e.word)] = e.category; });
-  lexicon.audience_categories.forEach((g) => g.words.forEach((w) => { t.audienceMulti[fold(w)] = g.categories.slice(); }));
-  lexicon.audience_programs.forEach((g) => { t.audienceSets[g.id] = g.programs.slice(); g.words.forEach((w) => { t.audienceAliases[fold(w)] = g.id; }); });
-  lexicon.topics.forEach((g) => { t.topicSets[g.id] = g.programs.slice(); g.words.forEach((w) => { t.topicAliases[fold(w)] = g.id; }); });
-  return t;
-}
-
-// Proof: the compiled lexicon equals the engine's tables, entry for entry.
-function verify(lexicon, E, fold) {
-  const t = compile(lexicon, fold);
+// Proof: the engine's own compiler turns the readable lexicon into exactly the default tables.
+function verify(lexicon, E) {
+  const got = E.compileLexicon(lexicon);
+  const want = E.getDefaultLexiconTables();
   const problems = [];
-  if (!sameSet([...t.stopwords], [...E.STOPWORDS_ALL])) problems.push("stopwords: διαφορετικό σύνολο");
+  if (!sameSet(got.stopwords, want.stopwords)) problems.push("stopwords: διαφορετικό σύνολο");
   const eq = (name, a, b) => { if (JSON.stringify(Object.entries(a).sort()) !== JSON.stringify(Object.entries(b).sort())) problems.push(name + ": διαφορά"); };
-  eq("category_words", t.category, E.CATEGORY_ALIASES);
-  eq("audience_categories", t.audienceMulti, E.AUDIENCE_MULTI_CATEGORY_ALIASES);
-  eq("audience_programs.sets", t.audienceSets, E.AUDIENCE_PROGRAM_SETS);
-  eq("audience_programs.aliases", t.audienceAliases, E.AUDIENCE_PROGRAM_ALIASES);
-  eq("topics.sets", t.topicSets, E.TOPIC_SETS);
-  eq("topics.aliases", t.topicAliases, E.TOPIC_ALIASES);
+  eq("category_words", got.category, want.category);
+  eq("audience_categories", got.audienceMulti, want.audienceMulti);
+  eq("audience_programs.sets", got.audienceSets, want.audienceSets);
+  eq("audience_programs.aliases", got.audienceAliases, want.audienceAliases);
+  eq("topics.sets", got.topicSets, want.topicSets);
+  eq("topics.aliases", got.topicAliases, want.topicAliases);
+  eq("audience_programs.scan_terms", Object.fromEntries(Object.entries(got.scan).map(([k, v]) => [k, v.slice().sort()])), Object.fromEntries(Object.entries(want.scan).map(([k, v]) => [k, v.slice().sort()])));
   if (problems.length) throw new Error("Το lexicon.json δεν ισοδυναμεί με τους πίνακες της μηχανής:\n  " + problems.join("\n  "));
 }
 
 function main() {
   if (process.argv.includes("--check")) {
     const { E, fold } = loadEngineTables();
-    verify(JSON.parse(fs.readFileSync(OUT, "utf8")), E, fold);
+    verify(JSON.parse(fs.readFileSync(OUT, "utf8")), E);
     console.log("✅ public/lexicon.json ισοδυναμεί ακριβώς με τους πίνακες της μηχανής.");
     return;
   }
@@ -129,5 +122,5 @@ function main() {
   console.log("   Απόδειξη: κάθε λέξη, αφού διπλωθεί, δίνει ακριβώς το κλειδί της μηχανής (και κανένα επιπλέον).");
 }
 
-module.exports = { compile, verify, loadEngineTables, SCHEMA_VERSION };
+module.exports = { verify, loadEngineTables, SCHEMA_VERSION };
 if (require.main === module) main();

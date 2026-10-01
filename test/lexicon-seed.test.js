@@ -4,10 +4,10 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
-const { verify, compile, loadEngineTables, SCHEMA_VERSION } = require("../scripts/build-lexicon-seed.js");
+const { verify, loadEngineTables, SCHEMA_VERSION } = require("../scripts/build-lexicon-seed.js");
 
 const lexicon = JSON.parse(fs.readFileSync(path.join(__dirname, "../public/lexicon.json"), "utf8"));
-const { E, fold } = loadEngineTables();
+const { E } = loadEngineTables();
 
 test("lexicon.json: schema version and shape", () => {
   assert.equal(lexicon.schema_version, SCHEMA_VERSION);
@@ -15,7 +15,7 @@ test("lexicon.json: schema version and shape", () => {
 });
 
 test("lexicon.json: compiles to exactly the engine's tables", () => {
-  assert.doesNotThrow(() => verify(lexicon, E, fold));
+  assert.doesNotThrow(() => verify(lexicon, E));
 });
 
 test("lexicon.json: words are real Greek spellings, not folded keys", () => {
@@ -27,11 +27,11 @@ test("lexicon.json: words are real Greek spellings, not folded keys", () => {
 test("proof is not vacuous: a changed word, a missing word or an extra word is detected", () => {
   const clone = () => JSON.parse(JSON.stringify(lexicon));
   const changed = clone(); changed.category_words[0].category = "Τουριστικά";
-  assert.throws(() => verify(changed, E, fold));
+  assert.throws(() => verify(changed, E));
   const missing = clone(); missing.stopwords.pop();
-  assert.throws(() => verify(missing, E, fold));
+  assert.throws(() => verify(missing, E));
   const extra = clone(); extra.topics[0].words.push("μάγειρας");
-  assert.throws(() => verify(extra, E, fold));
+  assert.throws(() => verify(extra, E));
 });
 
 test("every program the lexicon names exists in the catalog", () => {
