@@ -17,17 +17,20 @@ const SCHEDULE_HTML = `
 <tr><th>Header row without a course</th></tr>
 </tbody></table>`;
 
-function coursePage({ price, startDate, unavailable }) {
+function coursePage({ price, startDate, unavailable, cmsId, direction = "Ψυχολογία - Ψυχιατρική", name = "X", description = "Περιγραφή &laquo;X&raquo;" }) {
   const ld = {
     "@context": "http://schema.org",
     "@type": "Course",
-    name: "X",
+    name,
+    description,
+    image: "https://elearningekpa.gr/img/x.jpg",
     ...(startDate ? { hasCourseInstance: { "@type": "CourseInstance", startDate } } : {}),
     ...(price !== undefined ? { offers: { "@type": "Offer", price: String(price), priceCurrency: "EUR" } } : {}),
   };
   return `<html><script type="application/ld+json">{"@type":"Organization"}</script>
 <script type="application/ld+json">${JSON.stringify([ld])}</script>
-<body>${unavailable ? "<p>Το πρόγραμμα δεν είναι διαθέσιμο.</p>" : "<p>Κάνε Αίτηση</p>"}
+<body><h1>${name}</h1><div>Κατεύθυνση: <a href="/categories/x">${direction}</a></div> <p>Απονέμεται Πιστοποιητικό</p>
+${unavailable ? "<p>Το πρόγραμμα δεν είναι διαθέσιμο.</p>" : `<a href="/apply/${cmsId ?? 77}">Κάνε Αίτηση</a><a href="/apply/${cmsId ?? 77}">Κάνε Αίτηση</a>`}
 <div><strong>Προθεσμια Υποβολης Αιτησεων:</strong> <span>9/10/2026</span></div></body></html>`;
 }
 
@@ -57,12 +60,14 @@ test("catalog-sync: parses the course-schedule table, dedupes, decodes entities"
 });
 
 test("catalog-sync: reads price, start date and availability from Course JSON-LD", () => {
-  assert.deepEqual(Sync.parseCoursePage(coursePage({ price: 900, startDate: "2026-10-19" })), {
+  assert.deepEqual(Sync.parseCoursePage(coursePage({ price: 900, startDate: "2026-10-19", cmsId: 34 })), {
     has_jsonld: true, unavailable: false, price: 900, start_date: "2026-10-19", application_deadline: "2026-10-09",
+    cms_id: 34, direction: "Ψυχολογία - Ψυχιατρική", title: "X", description: "Περιγραφή «X»",
+    image: "https://elearningekpa.gr/img/x.jpg",
   });
-  assert.deepEqual(Sync.parseCoursePage(coursePage({ price: 425, unavailable: true })), {
-    has_jsonld: true, unavailable: true, price: 425, start_date: null, application_deadline: "2026-10-09",
-  });
+  const closed = Sync.parseCoursePage(coursePage({ price: 425, unavailable: true }));
+  assert.equal(closed.unavailable, true);
+  assert.equal(closed.cms_id, null, "no apply link when applications are closed");
   assert.equal(Sync.parseCoursePage("<html>no json-ld</html>").has_jsonld, false);
   assert.equal(Sync.parseCoursePage(coursePage({})).price, null);
 });
@@ -160,7 +165,8 @@ test("catalog-sync: checkCatalog fetches only ACTIVE program pages and reports n
   ];
   const result = await Sync.checkCatalog(programs, { fetchImpl: fakeFetch, delayMs: 0 });
   assert.equal(result.ok, true);
-  assert.deepEqual(requested, [Sync.COURSE_SCHEDULE_URL, "https://elearningekpa.gr/courses/alpha"]);
+  // active program + the program that is new in the cycle; never the inactive one
+  assert.deepEqual(requested, [Sync.COURSE_SCHEDULE_URL, "https://elearningekpa.gr/courses/alpha", "https://elearningekpa.gr/courses/beta"]);
   assert.deepEqual(result.newInCycle.map((c) => c.slug), ["beta"]);
   assert.equal(result.pages.alpha.price, 700);
 });
@@ -173,7 +179,7 @@ test("catalog-sync: retries rate-limited pages and gives up cleanly", async () =
     return { status: 403, text: async () => "" };
   };
   const result = await Sync.checkCatalog([{ slug: "alpha", price: 1 }], { fetchImpl: fakeFetch, delayMs: 0, retryDelaysMs: [0, 0] });
-  assert.equal(calls, 3);
+  assert.equal(calls, 6); // alpha + new "beta", 3 attempts each
   assert.deepEqual(result.pages.alpha, { http: 403 });
 });
 

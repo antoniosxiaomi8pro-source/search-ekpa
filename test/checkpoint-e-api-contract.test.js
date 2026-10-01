@@ -30,12 +30,14 @@ test("Checkpoint E: all 84 psychology results are traversable exactly once in st
   assert.equal(new Set(pages.map(x => x.slug)).size, 84);
 });
 
-test("Checkpoint E: 81-result teacher audience is complete across three pages", () => {
+// 81 -> 84 on 2026-10-01: three Παιδαγωγικά programs that had no category got their
+// official category from the site (catalog gap filling, docs/LEDGER.md).
+test("Checkpoint E: 84-result teacher audience is complete across three pages", () => {
   const all = Engine.rank(programs, concepts, "πρόγραμμα για δασκάλους");
-  assert.equal(all.length, 81);
+  assert.equal(all.length, 84);
   const p3 = Contract.buildPagedResponse(all, { page: "3", page_size: "40" });
-  assert.equal(p3.results.length, 1);
-  assert.equal(p3.pagination.total_results, 81);
+  assert.equal(p3.results.length, 4);
+  assert.equal(p3.pagination.total_results, 84);
   assert.equal(p3.pagination.total_pages, 3);
   assert.equal(p3.pagination.has_next, false);
 });

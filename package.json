@@ -10,7 +10,8 @@
     "update-fixture": "node scripts/update-search-fixture.js",
     "catalog:check": "node scripts/catalog-check.js",
     "catalog:apply": "node scripts/catalog-check.js apply",
-    "package:it": "node scripts/build-it-package.js"
+    "package:it": "node scripts/build-it-package.js",
+    "ranking:diff": "node scripts/ranking-diff.js"
   },
   "dependencies": {
     "compression": "^1.8.2",

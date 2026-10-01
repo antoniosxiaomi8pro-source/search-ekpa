@@ -13,6 +13,8 @@
 // The site answers 403 to fast sequential requests, so page fetches are deliberately
 // slow (default 2s apart) and retried with backoff.
 
+const Enrich = require("./program-enrich.js");
+
 const SITE_ORIGIN = "https://elearningekpa.gr";
 const COURSE_SCHEDULE_URL = SITE_ORIGIN + "/course-schedule";
 const USER_AGENT = "EKPA-SmartFinder-CatalogCheck/1.0";
@@ -87,7 +89,8 @@ function parseCoursePage(html) {
   }
   const unavailable = html.includes(UNAVAILABLE_MARKER);
   const application_deadline = parseApplicationDeadline(html);
-  if (!course) return { has_jsonld: false, unavailable, price: null, start_date: null, application_deadline };
+  const extra = parsePageDetails(html);
+  if (!course) return { has_jsonld: false, unavailable, price: null, start_date: null, application_deadline, ...extra, title: null, description: null, image: null };
   const rawPrice = course.offers ? course.offers.price : null;
   const price = rawPrice === null || rawPrice === undefined || rawPrice === "" ? null : Number(rawPrice);
   const inst = course.hasCourseInstance || {};
@@ -97,6 +100,30 @@ function parseCoursePage(html) {
     price: Number.isFinite(price) ? price : null,
     start_date: typeof inst.startDate === "string" ? inst.startDate : null,
     application_deadline,
+    ...extra,
+    title: typeof course.name === "string" ? decodeEntities(course.name).trim() : null,
+    description: typeof course.description === "string" ? cleanText(course.description) : null,
+    image: typeof course.image === "string" ? course.image : null,
+  };
+}
+
+function cleanText(s) {
+  const t = decodeEntities(String(s).replace(/<[^>]+>/g, " ")).replace(/\s+/g, " ").trim();
+  return t || null;
+}
+
+// Fields that are not in the JSON-LD:
+//  - cms_id:    the "Κάνε Αίτηση" link "/apply/<id>" carries the CMS id (verified equal to
+//               the existing id for programs that have one). Absent when applications are closed.
+//  - direction: "Κατεύθυνση: <category>" in the page header - the site's official category.
+function parsePageDetails(html) {
+  const ids = [...html.matchAll(/\/apply\/(\d+)/g)].map((m) => Number(m[1]));
+  const uniqueIds = [...new Set(ids)];
+  const text = decodeEntities(html.replace(/<script[\s\S]*?<\/script>/g, " ").replace(/<[^>]+>/g, " ")).replace(/\s+/g, " ");
+  const d = /Κατεύθυνση:\s*(.+?)\s*(?:Απονέμεται|Έναρξη Μαθημάτων|Οδηγός Σπουδών)/.exec(text);
+  return {
+    cms_id: uniqueIds.length === 1 ? uniqueIds[0] : null,
+    direction: d ? d[1].trim() : null,
   };
 }
 
@@ -147,7 +174,12 @@ async function checkCatalog(programs, options = {}) {
 
   const pages = {};
   if (opts.withPrices) {
-    const targets = programs.filter((p) => cycleBySlug.has(p.slug));
+    // Active programs + programs that are new in the cycle (their page is the source of
+    // their whole record). Inactive programs' pages are never requested.
+    const targets = [
+      ...programs.filter((p) => cycleBySlug.has(p.slug)),
+      ...cycle.filter((c) => !catalogBySlug.has(c.slug)).map((c) => ({ slug: c.slug })),
+    ];
     for (let i = 0; i < targets.length; i++) {
       const p = targets[i];
       const r = await fetchText(p.url || `${SITE_ORIGIN}/courses/${p.slug}`, opts);
@@ -183,6 +215,12 @@ function buildCandidate(programs, check, options = {}) {
     page_errors: [],
     in_cycle_but_unavailable: [],
     new_in_cycle: check.newInCycle.map((c) => ({ slug: c.slug, title: c.title })),
+    new_added: [],
+    new_not_added: [],
+    gaps_filled: [],
+    similar_filled: [],
+    id_conflicts: [],
+    category_differs: [],
   };
 
   const candidate = programs.map((orig) => {
@@ -233,6 +271,65 @@ function buildCandidate(programs, check, options = {}) {
     return p;
   });
 
+  // ---- Gap filling + new programs (only empty fields are ever filled) ----
+  if (check.withPrices && opts.fillGaps !== false) {
+    const ctx = { concepts: opts.concepts || {}, knownCategories: Enrich.knownCategories(programs) };
+    const usedIds = new Map(candidate.filter((p) => p.id !== null && p.id !== undefined).map((p) => [Number(p.id), p.slug]));
+    const takeId = (p, page) => {
+      // An id from the page that already belongs to another program is never assigned.
+      if (page.cms_id === null || page.cms_id === undefined) return page;
+      const owner = usedIds.get(page.cms_id);
+      if (owner && owner !== p.slug) {
+        diff.id_conflicts.push({ slug: p.slug, id: page.cms_id, already_used_by: owner });
+        return { ...page, cms_id: null };
+      }
+      return page;
+    };
+
+    candidate.forEach((p) => {
+      const page = check.pages[p.slug];
+      if (!isActive(p) || !page || page.http !== 200) return;
+      if (page.direction && p.primary_area && page.direction !== p.primary_area) {
+        diff.category_differs.push({ slug: p.slug, ours: p.primary_area, site: page.direction });
+      }
+      const fields = Enrich.fillFromPage(p, takeId(p, page), ctx);
+      if (fields.includes("id")) usedIds.set(Number(p.id), p.slug);
+      if (fields.length) diff.gaps_filled.push({ slug: p.slug, fields });
+    });
+
+    check.newInCycle.forEach((row) => {
+      const page = check.pages[row.slug];
+      if (!page || page.http !== 200 || page.unavailable || !page.has_jsonld) {
+        diff.new_not_added.push({ slug: row.slug, title: row.title, reason: !page || page.http !== 200 ? `HTTP ${page ? page.http : "-"}` : page.unavailable ? "δεν είναι διαθέσιμο" : "χωρίς JSON-LD" });
+        return;
+      }
+      const p = Enrich.buildNewProgram(row, takeId({ slug: row.slug }, page), ctx);
+      if (p.id !== null) usedIds.set(Number(p.id), p.slug);
+      Object.assign(p, {
+        status: "active",
+        status_source: "course-schedule",
+        status_checked_at: checkedAt,
+        price_source: "jsonld",
+        price_checked_at: checkedAt,
+        ...(page.start_date ? { cycle_start_date: page.start_date } : {}),
+        ...(page.application_deadline ? { application_deadline: page.application_deadline } : {}),
+        added_at: checkedAt,
+      });
+      candidate.push(p);
+      diff.new_added.push({ slug: p.slug, title: p.title, primary_area: p.primary_area, concepts: p.concepts });
+    });
+
+    // Related programs last, once every program has its final categories/concepts/id.
+    candidate.forEach((p) => {
+      if (!isActive(p) || !Enrich.isEmpty(p.similar_program_ids)) return;
+      const sim = Enrich.computeSimilar(p, candidate);
+      if (sim.length) {
+        p.similar_program_ids = sim;
+        diff.similar_filled.push({ slug: p.slug, count: sim.length });
+      }
+    });
+  }
+
   const activeBefore = programs.filter(isActive).length;
   const blockers = [];
   if (check.cycle.length < programs.length * opts.minActiveRatio) {
@@ -260,6 +357,12 @@ function buildCandidate(programs, check, options = {}) {
     price_flagged: diff.price_flagged.length,
     page_errors: diff.page_errors.length,
     in_cycle_but_unavailable: diff.in_cycle_but_unavailable.length,
+    new_added: diff.new_added.length,
+    new_not_added: diff.new_not_added.length,
+    gaps_filled: diff.gaps_filled.length,
+    similar_filled: diff.similar_filled.length,
+    id_conflicts: diff.id_conflicts.length,
+    category_differs: diff.category_differs.length,
     can_apply: blockers.length === 0,
     blockers,
   };

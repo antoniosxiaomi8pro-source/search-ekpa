@@ -16,6 +16,7 @@ const Sync = require("../server/catalog-sync.js");
 
 const ROOT = path.join(__dirname, "..");
 const PROGRAMS_PATH = path.join(ROOT, "public/programs.json");
+const CONCEPTS_PATH = path.join(ROOT, "public/concepts.json");
 const OUT_ROOT = path.join(ROOT, "data/catalog-check");
 
 function stamp() {
@@ -43,7 +44,12 @@ function summaryText(summary, diff) {
   lines.push("");
   list("− Κρύβονται (εκτός κύκλου)", diff.deactivated, (x) => `${x.slug} — ${x.title}`);
   list("+ Επανεμφανίζονται", diff.reactivated, (x) => `${x.slug} — ${x.title}`);
-  list("★ Νέα στον κύκλο (δεν υπάρχουν στον κατάλογο, ΔΕΝ προστίθενται αυτόματα)", diff.new_in_cycle, (x) => `${x.slug} — ${x.title}`);
+  list("★ Νέα προγράμματα που προστίθενται", diff.new_added || [], (x) => `${x.slug} — ${x.title} [${x.primary_area || "χωρίς κατηγορία"}; ${(x.concepts || []).join(", ")}]`);
+  list("★ Νέα στον κύκλο που ΔΕΝ προστέθηκαν", diff.new_not_added || [], (x) => `${x.slug} — ${x.title} (${x.reason})`);
+  list("◆ Προγράμματα με κενά που συμπληρώθηκαν", diff.gaps_filled || [], (x) => `${x.slug}: ${x.fields.join(", ")}`);
+  list("◆ Σχετικά προγράμματα που συμπληρώθηκαν", diff.similar_filled || [], (x) => `${x.slug}: ${x.count}`);
+  list("⚠ id που ανήκει ήδη σε άλλο πρόγραμμα (δεν δόθηκε)", diff.id_conflicts || [], (x) => `${x.slug}: ${x.id} (έχει ήδη το ${x.already_used_by})`);
+  list("ℹ Η κατηγορία του site διαφέρει από τη δική μας (δεν αλλάζει)", diff.category_differs || [], (x) => `${x.slug}: εμείς «${x.ours}», site «${x.site}»`);
   list("€ Τιμές που συμπληρώθηκαν", diff.price_filled, (x) => `${x.slug}: ${x.price}`);
   list("€ Τιμές που άλλαξαν", diff.price_changed, (x) => `${x.slug}: ${x.from} → ${x.to}`);
   list("⚠ Μεγάλη αλλαγή τιμής (>30%)", diff.price_flagged, (x) => `${x.slug}: ${x.from} → ${x.to}`);
@@ -75,7 +81,8 @@ async function runCheck(statusOnly, fromDir) {
     console.error("Αποτυχία: " + check.error);
     process.exit(1);
   }
-  const { candidate, diff, summary } = Sync.buildCandidate(programs, check);
+  const concepts = JSON.parse(fs.readFileSync(CONCEPTS_PATH, "utf8"));
+  const { candidate, diff, summary } = Sync.buildCandidate(programs, check, { concepts });
   writeAtomic(path.join(outDir, "check.json"), JSON.stringify(check));
   writeAtomic(path.join(outDir, "report.json"), JSON.stringify({ summary, diff }, null, 2));
   writeAtomic(path.join(outDir, "programs.candidate.json"), JSON.stringify(candidate));
@@ -98,8 +105,11 @@ function runApply(dirArg, force) {
   }
   const candidate = JSON.parse(fs.readFileSync(path.join(dir, "programs.candidate.json"), "utf8"));
   const current = fs.readFileSync(PROGRAMS_PATH, "utf8");
-  if (!Array.isArray(candidate) || candidate.length !== JSON.parse(current).length) {
-    console.error("⛔ Το candidate δεν ταιριάζει με τον τρέχοντα κατάλογο (διαφορετικό πλήθος). Τρέξε νέο έλεγχο.");
+  // The candidate = current catalog (same order) + new programs appended at the end.
+  const currentSlugs = JSON.parse(current).map((p) => p.slug);
+  if (!Array.isArray(candidate) || candidate.length !== currentSlugs.length + (summary.new_added || 0) ||
+      currentSlugs.some((s, i) => candidate[i].slug !== s)) {
+    console.error("⛔ Το candidate δεν ταιριάζει με τον τρέχοντα κατάλογο (έχει αλλάξει από τον έλεγχο). Τρέξε νέο έλεγχο.");
     process.exit(1);
   }
   const backup = path.join(dir, "programs.before-apply.json");

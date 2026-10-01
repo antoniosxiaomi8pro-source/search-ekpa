@@ -140,6 +140,8 @@ test("Checkpoint G5 safety: valid ναυτιλια query keeps its established r
   );
 });
 
+// Baseline re-captured 2026-10-01 after catalog gap filling (reviewed in RANKING-DIFF):
+// two psychology programs that had no description/category now rank (#7, #10).
 test("Checkpoint G5 safety: valid ψυχολόγος query keeps its established ranking", () => {
   const expected = [
     "iatrikh-psuxologia",
@@ -148,10 +150,10 @@ test("Checkpoint G5 safety: valid ψυχολόγος query keeps its established
     "koinwnikh-klinikh-psuxologia-twn-eksarthsewn",
     "organwsiakh-psuxologia-kai-sumperifora",
     "efarmoges-ths-sumbouleutikhs-psuxologias-sthn-ekpaideush-ta-paidia-kai-tous-efhbous",
+    "egklhmatologikh-ereuna-h-sumbolh-ths-psuxologias",
     "dikastikh-psuxiatrodikastikh-psuxologia",
     "paidopsuxiatrikh",
-    "thetikh-psuxologia-h-episthmh-ths-eutuxias",
-    "paidopsuxologia-psuxologia-brefous-kai-paidiou-prosxolikhs-hlikias"
+    "psuxologia-ths-thrhskeias"
   ];
 
   assert.deepEqual(
