@@ -464,7 +464,7 @@ function renderRanking(r) {
     return `<details class="change-list"><summary>${esc(g.label)}: άλλαξαν <b>${g.changed}</b> από ${g.queries}</summary>${items}</details>`;
   }).join("");
   return `<h4>🔎 Αλλαγές στα αποτελέσματα αναζήτησης (top-10)</h4>
-    <p class="hint">Αλλάζουν ${r.changed} από ${r.queries} αναζητήσεις. Έλεγξε ότι τα προγράμματα που μπαίνουν είναι σχετικά.</p>${groups}`;
+    <p class="hint">${r.changed ? `Αλλάζουν ${r.changed} από ${r.queries} αναζητήσεις. Έλεγξε ότι τα προγράμματα που μπαίνουν είναι σχετικά.` : `Κανένα από τα αποτελέσματα των ${r.queries} αναζητήσεων ελέγχου δεν αλλάζει.`}</p>${groups}`;
 }
 
 function renderJob(job) {
@@ -474,8 +474,7 @@ function renderJob(job) {
   if (!job) { panel.style.display = "none"; return; }
   panel.style.display = "";
   const running = job.state === "running" || job.state === "comparing";
-  document.getElementById("catalogCheckBtn").disabled = running || !adminToken;
-  document.getElementById("catalogQuickCheckBtn").disabled = running || !adminToken;
+  setCheckButtonsDisabled(running || !adminToken);
   if (running) {
     const p = job.progress || {};
     const pct = p.total ? Math.round((100 * p.done) / p.total) : 0;
@@ -497,15 +496,18 @@ function renderJob(job) {
     return;
   }
   const s = job.summary, d = job.diff;
+  const quick = job.mode === "status";
   const blocked = !s.can_apply;
-  el.innerHTML = `<h4 style="margin-top:0">📋 Αποτέλεσμα ελέγχου · ${esc(fmtDate(job.finished_at))}</h4>
+  const changes = s.deactivated + s.reactivated + (quick ? 0 : s.new_added + s.price_filled + s.price_changed + s.gaps_filled + s.similar_filled);
+  el.innerHTML = `<h4 style="margin-top:0">📋 ${quick ? "Γρήγορος έλεγχος" : "Πλήρης έλεγχος"} · ${esc(fmtDate(job.finished_at))}</h4>
+    ${quick ? `<div class="banner warn">Ο γρήγορος έλεγχος κοιτάζει <b>μόνο ποια προγράμματα είναι στον «Τρέχοντα Κύκλο»</b>. Τιμές, νέα προγράμματα, προθεσμίες και κενά στοιχεία <b>δεν ελέγχθηκαν</b>. Για αυτά χρειάζεται «🔍 Έλεγχος καταλόγου».${s.new_in_cycle ? ` Υπάρχουν <b>${s.new_in_cycle}</b> νέα στον κύκλο. Θα προστεθούν με πλήρη έλεγχο.` : ""}</div>` : ""}
     <div class="kpis">
       <div class="kpi"><b>${s.active_after}</b><span>ενεργά μετά</span></div>
       <div class="kpi"><b>${s.deactivated}</b><span>θα κρυφτούν</span></div>
       <div class="kpi"><b>${s.reactivated}</b><span>θα επανεμφανιστούν</span></div>
-      <div class="kpi"><b>${s.new_added}</b><span>νέα προγράμματα</span></div>
+      ${quick ? "" : `<div class="kpi"><b>${s.new_added}</b><span>νέα προγράμματα</span></div>
       <div class="kpi"><b>${s.price_filled + s.price_changed}</b><span>τιμές (νέες/αλλαγμένες)</span></div>
-      <div class="kpi"><b>${s.gaps_filled}</b><span>με κενά που συμπληρώνονται</span></div>
+      <div class="kpi"><b>${s.gaps_filled}</b><span>με κενά που συμπληρώνονται</span></div>`}
     </div>
     ${list("− Κρύβονται", d.deactivated, (x) => x.title, true)}
     ${list("+ Επανεμφανίζονται", d.reactivated, (x) => x.title, true)}
@@ -517,12 +519,13 @@ function renderJob(job) {
     ${list("◆ Κενά πεδία που συμπληρώνονται", d.gaps_filled, (x) => `${x.slug}: ${x.fields.join(", ")}`)}
     ${list("⚠ Σελίδες που δεν φορτώθηκαν (κρατήθηκαν τα παλιά στοιχεία)", d.page_errors, (x) => `${x.slug}: HTTP ${x.http}`, true)}
     ${list("ℹ Κατηγορία του site διαφορετική από τη δική μας (δεν αλλάζει)", d.category_differs, (x) => `${x.slug}: εμείς «${x.ours}», site «${x.site}»`)}
-    ${renderRanking(job.ranking)}
+    ${changes ? renderRanking(job.ranking) : ""}
     ${blocked ? `<div class="banner err">⛔ Η εφαρμογή είναι κλειδωμένη: ${esc(s.blockers.join(" "))}</div>` : ""}
+    ${!changes ? `<div class="banner ok">✓ Καμία αλλαγή${quick ? " στην κατάσταση των προγραμμάτων" : ""}. Δεν χρειάζεται εφαρμογή.</div>` : `
     <div class="toolbar" style="margin-top:14px">
       <button class="btn btn-primary" id="catalogApplyBtn" ${blocked ? "disabled" : ""}>✅ Εφαρμογή</button>
       <span class="hint">Πριν την εφαρμογή κρατιέται αυτόματα backup του τρέχοντος καταλόγου.</span>
-    </div>`;
+    </div>`}`;
   const applyBtn = document.getElementById("catalogApplyBtn");
   if (applyBtn) applyBtn.addEventListener("click", applyCatalog);
 }
@@ -572,8 +575,15 @@ async function loadQuick() {
   }
 }
 
+function setCheckButtonsDisabled(disabled) {
+  document.getElementById("catalogCheckBtn").disabled = disabled;
+  document.getElementById("catalogQuickCheckBtn").disabled = disabled;
+}
+
 async function startCheck(mode) {
   if (mode === "full" && !window.confirm("Ο πλήρης έλεγχος διαρκεί περίπου 25 λεπτά και τρέχει στο παρασκήνιο. Να ξεκινήσει;")) return;
+  setCheckButtonsDisabled(true); // immediately - a second click must not start another check
+  showCatalogStatus("", "");
   try {
     const data = await catalogApi("POST", "/api/admin/catalog/check", { mode });
     showCatalogStatus("Ο έλεγχος ξεκίνησε.", "ok");
@@ -582,6 +592,7 @@ async function startCheck(mode) {
     catalogPoll = setTimeout(() => loadCatalog(false), 1500);
   } catch (err) {
     showCatalogStatus("Δεν ξεκίνησε ο έλεγχος: " + err.message, "err");
+    loadCatalog(false); // re-sync buttons with the server's real state
   }
 }
 
