@@ -14,9 +14,21 @@ const fs = require("fs");
 const path = require("path");
 const EkpaSearch = require("../public/search-engine.js");
 const SearchApiContract = require("./search-api-contract.js");
+const { isActive } = require("./catalog-sync.js");
 
 const PUBLIC_DIR = path.join(__dirname, "../public");
-const PROGRAMS = JSON.parse(fs.readFileSync(path.join(PUBLIC_DIR, "programs.json"), "utf-8"));
+// ALL_PROGRAMS: the full catalog, including programs outside the current cycle
+// (status "inactive", see docs/B0-architecture-decisions.md §5). Used only where a
+// hidden program must still be recognised: click tracking of old links and the
+// ranking-drift guard (whose fixture was captured on the full catalog).
+// PROGRAMS: what visitors can find — search, chat, /api/programs. Inactive programs are
+// filtered here, BEFORE the search engine, so the validated engine itself is unchanged.
+// PROGRAMS_FILE (optional) points at another catalog file - used by the tests.
+const PROGRAMS_FILE = process.env.PROGRAMS_FILE
+  ? path.resolve(process.env.PROGRAMS_FILE)
+  : path.join(PUBLIC_DIR, "programs.json");
+const ALL_PROGRAMS = JSON.parse(fs.readFileSync(PROGRAMS_FILE, "utf-8"));
+const PROGRAMS = ALL_PROGRAMS.filter(isActive);
 
 // ---- Persistent data directory ----
 // Files that CHANGE at runtime (admin taxonomy edits, analytics) must live outside the
@@ -54,8 +66,8 @@ function writeFileAtomicSync(filePath, content) {
 // canonical key for click tracking. Numeric ids are still accepted (legacy analytics
 // entries / older widget versions), but "null"/"undefined"/"" are always rejected.
 const PROGRAMS_BY_KEY = new Map();
-PROGRAMS.forEach((p) => { if (p.slug) PROGRAMS_BY_KEY.set(String(p.slug), p); });
-PROGRAMS.forEach((p) => {
+ALL_PROGRAMS.forEach((p) => { if (p.slug) PROGRAMS_BY_KEY.set(String(p.slug), p); });
+ALL_PROGRAMS.forEach((p) => {
   if (p.id !== null && p.id !== undefined && !PROGRAMS_BY_KEY.has(String(p.id))) PROGRAMS_BY_KEY.set(String(p.id), p);
 });
 function resolveProgram(key) {
@@ -270,6 +282,12 @@ app.use(express.json({ limit: "64kb" }));
 app.get("/concepts.json", (req, res) => {
   res.set("Cache-Control", "no-cache");
   res.json(CONCEPTS);
+});
+// The raw file is also reachable as a static asset; serve the same visitor-facing list
+// as /api/programs so hidden programs don't leak through it.
+app.get("/programs.json", (req, res) => {
+  res.set("Cache-Control", "public, max-age=300");
+  res.json(PROGRAMS);
 });
 app.use(express.static(PUBLIC_DIR));
 
@@ -506,7 +524,11 @@ app.get("/api/programs", searchLimiter, (req, res) => {
 });
 
 // Healthcheck target (Railway Settings → Healthcheck Path / uptime monitors).
-app.get("/health", (req, res) => res.json({ ok: true, programs: PROGRAMS.length }));
+// `programs` stays the full catalog size (IT's smoke tests expect it); `active_programs`
+// is what visitors can actually find.
+app.get("/health", (req, res) =>
+  res.json({ ok: true, programs: ALL_PROGRAMS.length, active_programs: PROGRAMS.length })
+);
 
 // ---- Admin: taxonomy editing ----
 // Protected by a shared secret (ADMIN_TOKEN env var), sent as the x-admin-token header.
@@ -559,7 +581,7 @@ function checkRankingDrift(newConcepts) {
   if (!RANKING_FIXTURE) return [];
   const diffs = [];
   for (const [query, expectedTop10] of Object.entries(RANKING_FIXTURE)) {
-    const actualTop10 = EkpaSearch.rank(PROGRAMS, newConcepts, query)
+    const actualTop10 = EkpaSearch.rank(ALL_PROGRAMS, newConcepts, query)
       .slice(0, 10)
       .map((p) => p.slug);
     if (JSON.stringify(actualTop10) !== JSON.stringify(expectedTop10)) {
