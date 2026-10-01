@@ -5,6 +5,10 @@
 //
 // Rule: ONLY EMPTY FIELDS ARE FILLED. A field that already has a value is never
 // changed here - existing, reviewed data keeps its current ranking behaviour.
+// One planned exception (B0 §5): primary_area follows the site's "Κατεύθυνση" -
+// see alignPrimaryArea(). Ready and tested, but OFF by default: it ships together
+// with the lexicon fixes (R3), because aligning alone drops some programs sharply
+// in categories they lose as primary (decision 2026-10-01).
 //
 // How each field is derived (measured against the existing catalog on 2026-10-01):
 //  - id:                 the site's own application link "/apply/<id>" (same number as
@@ -109,6 +113,23 @@ function fillFromPage(p, page, ctx) {
   return filled;
 }
 
+// The site's own category for a program ("Κατεύθυνση" in the program header) is the
+// official one and is what visitors see, so it becomes primary_area. The previous
+// primary stays in areas_of_study (nothing is lost). Never applied for unknown
+// category names (no invented categories) or for the catch-all "Άλλοι Τομείς".
+const NON_ALIGNABLE_DIRECTIONS = new Set(["Άλλοι Τομείς"]);
+function alignPrimaryArea(p, page, ctx) {
+  const dir = page && page.direction;
+  if (!dir || dir === p.primary_area) return null;
+  if (NON_ALIGNABLE_DIRECTIONS.has(dir) || !ctx.knownCategories.has(dir)) return null;
+  const from = p.primary_area || null;
+  const areas = Array.isArray(p.areas_of_study) ? p.areas_of_study : [];
+  p.primary_area = dir;
+  if (!areas.includes(dir)) p.areas_of_study = [dir, ...areas];
+  p.search_text = searchText(p);
+  return { from, to: dir, added_to_areas: !areas.includes(dir) };
+}
+
 function buildNewProgram(row, page, ctx) {
   const p = {
     id: page.cms_id ?? null,
@@ -142,6 +163,8 @@ function knownCategories(programs) {
 }
 
 module.exports = {
+  NON_ALIGNABLE_DIRECTIONS,
+  alignPrimaryArea,
   TAGS_PER_CONCEPT,
   SIMILAR_COUNT,
   isEmpty,

@@ -34,9 +34,10 @@ const base = () => [
 test("enrich: fills ONLY empty fields; complete programs keep every search field", () => {
   const programs = base();
   const { candidate } = Sync.buildCandidate(programs, check(["full", "gappy", "other"], {
-    full: page({ cms_id: 1, direction: "Τουριστικά", description: "ΑΛΛΗ", title: "ΑΛΛΟΣ" }),
+    // same category as ours, different description/title on the page -> nothing changes
+    full: page({ cms_id: 1, direction: "Ψυχολογία - Ψυχιατρική", description: "ΑΛΛΗ", title: "ΑΛΛΟΣ" }),
     gappy: page({ cms_id: 55 }),
-    other: page({ cms_id: 2 }),
+    other: page({ cms_id: 2, direction: "Τουριστικά" }),
   }), { concepts: CONCEPTS });
   const full = candidate.find((p) => p.slug === "full");
   for (const f of ["id", "title", "primary_area", "areas_of_study", "description_full", "description_for_matching", "tags", "concepts", "similar_program_ids", "search_text"]) {
@@ -46,7 +47,7 @@ test("enrich: fills ONLY empty fields; complete programs keep every search field
 
 test("enrich: a program with gaps gets id, category, description, concepts, tags, related", () => {
   const { candidate, diff } = Sync.buildCandidate(base(), check(["full", "gappy", "other"], {
-    full: page({ cms_id: 1 }), gappy: page({ cms_id: 55 }), other: page({ cms_id: 2 }),
+    full: page({ cms_id: 1 }), gappy: page({ cms_id: 55 }), other: page({ cms_id: 2, direction: "Τουριστικά" }),
   }), { concepts: CONCEPTS });
   const g = candidate.find((p) => p.slug === "gappy");
   assert.equal(g.id, 55);
@@ -80,11 +81,35 @@ test("enrich: an id already used by another program is never assigned", () => {
   assert.deepEqual(diff.id_conflicts, [{ slug: "gappy", id: 2, already_used_by: "other" }]);
 });
 
-test("enrich: reports when the site's category differs from ours, without changing ours", () => {
+test("enrich: primary category follows the site's «Κατεύθυνση»; the old one is kept as secondary", () => {
+  const { candidate, diff } = Sync.buildCandidate(base(), check(["full", "gappy", "other"], {
+    full: page({ cms_id: 1, direction: "Τουριστικά" }),
+  }), { concepts: CONCEPTS, alignPrimary: true });
+  const full = candidate.find((p) => p.slug === "full");
+  assert.equal(full.primary_area, "Τουριστικά");
+  assert.deepEqual(full.areas_of_study, ["Τουριστικά", "Ψυχολογία - Ψυχιατρική"]);
+  assert.deepEqual(full.concepts, ["psychology"], "concepts/tags of a complete program are not recomputed");
+  assert.deepEqual(diff.primary_aligned, [{ slug: "full", title: "Κλινική Ψυχολογία", from: "Ψυχολογία - Ψυχιατρική", to: "Τουριστικά", added_to_areas: true }]);
+  assert.deepEqual(diff.category_differs, [], "nothing left different after alignment");
+});
+
+test("enrich: alignment never uses «Άλλοι Τομείς» or a category name we don't know", () => {
+  for (const direction of ["Άλλοι Τομείς", "Υγεία Πιστοποιητικό Εξειδικευμένης Επιμόρφωσης"]) {
+    const { candidate, diff } = Sync.buildCandidate(base(), check(["full", "gappy", "other"], {
+      full: page({ cms_id: 1, direction }),
+    }), { concepts: CONCEPTS, alignPrimary: true });
+    assert.equal(candidate.find((p) => p.slug === "full").primary_area, "Ψυχολογία - Ψυχιατρική", direction);
+    assert.deepEqual(diff.primary_aligned, [], direction);
+    assert.equal(diff.category_differs.length, 1, "still reported for review");
+  }
+});
+
+test("enrich: alignment is OFF by default (decision 2026-10-01) - our category is kept and reported", () => {
   const { candidate, diff } = Sync.buildCandidate(base(), check(["full", "gappy", "other"], {
     full: page({ cms_id: 1, direction: "Τουριστικά" }),
   }), { concepts: CONCEPTS });
   assert.equal(candidate.find((p) => p.slug === "full").primary_area, "Ψυχολογία - Ψυχιατρική");
+  assert.deepEqual(diff.primary_aligned, []);
   assert.deepEqual(diff.category_differs, [{ slug: "full", ours: "Ψυχολογία - Ψυχιατρική", site: "Τουριστικά" }]);
 });
 

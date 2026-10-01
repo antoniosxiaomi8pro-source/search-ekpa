@@ -115,15 +115,27 @@ function cleanText(s) {
 // Fields that are not in the JSON-LD:
 //  - cms_id:    the "Κάνε Αίτηση" link "/apply/<id>" carries the CMS id (verified equal to
 //               the existing id for programs that have one). Absent when applications are closed.
-//  - direction: "Κατεύθυνση: <category>" in the page header - the site's official category.
+//  - direction: the program header's category link
+//               <div class="course-category">Κατεύθυνση: <a class="course-category__link"
+//               href="/categories/ygeia">Υγεία</a></div> - the site's official category.
+//               Read from the link itself: the text after it varies per page (badges,
+//               certification notes), so reading "text up to the next word" picked up
+//               extra words on 19 pages (2026-10-01).
 function parsePageDetails(html) {
   const ids = [...html.matchAll(/\/apply\/(\d+)/g)].map((m) => Number(m[1]));
   const uniqueIds = [...new Set(ids)];
-  const text = decodeEntities(html.replace(/<script[\s\S]*?<\/script>/g, " ").replace(/<[^>]+>/g, " ")).replace(/\s+/g, " ");
-  const d = /Κατεύθυνση:\s*(.+?)\s*(?:Απονέμεται|Έναρξη Μαθημάτων|Οδηγός Σπουδών)/.exec(text);
+  let direction = null;
+  const link = /<a[^>]*class="[^"]*course-category__link[^"]*"[^>]*>([\s\S]*?)<\/a>/.exec(html);
+  if (link) {
+    direction = decodeEntities(link[1].replace(/<[^>]+>/g, " ")).replace(/\s+/g, " ").trim() || null;
+  } else {
+    const text = decodeEntities(html.replace(/<script[\s\S]*?<\/script>/g, " ").replace(/<[^>]+>/g, " ")).replace(/\s+/g, " ");
+    const d = /Κατεύθυνση:\s*(.+?)\s*(?:Απονέμεται|Έναρξη Μαθημάτων|Οδηγός Σπουδών)/.exec(text);
+    direction = d ? d[1].trim() : null;
+  }
   return {
     cms_id: uniqueIds.length === 1 ? uniqueIds[0] : null,
-    direction: d ? d[1].trim() : null,
+    direction,
   };
 }
 
@@ -223,6 +235,7 @@ function buildCandidate(programs, check, options = {}) {
     similar_filled: [],
     id_conflicts: [],
     category_differs: [],
+    primary_aligned: [],
   };
 
   const candidate = programs.map((orig) => {
@@ -297,10 +310,14 @@ function buildCandidate(programs, check, options = {}) {
     candidate.forEach((p) => {
       const page = check.pages[p.slug];
       if (!isActive(p) || !page || page.http !== 200) return;
+      const fields = Enrich.fillFromPage(p, takeId(p, page), ctx);
+      // Primary category follows the site - OFF until it ships together with the
+      // lexicon fixes (decision 2026-10-01, B0 §5). Enable with alignPrimary:true.
+      const aligned = opts.alignPrimary === true ? Enrich.alignPrimaryArea(p, page, ctx) : null;
+      if (aligned) diff.primary_aligned.push({ slug: p.slug, title: p.title, ...aligned });
       if (page.direction && p.primary_area && page.direction !== p.primary_area) {
         diff.category_differs.push({ slug: p.slug, ours: p.primary_area, site: page.direction });
       }
-      const fields = Enrich.fillFromPage(p, takeId(p, page), ctx);
       if (fields.includes("id")) usedIds.set(Number(p.id), p.slug);
       if (fields.length) diff.gaps_filled.push({ slug: p.slug, fields });
     });
@@ -371,6 +388,7 @@ function buildCandidate(programs, check, options = {}) {
     similar_filled: diff.similar_filled.length,
     id_conflicts: diff.id_conflicts.length,
     category_differs: diff.category_differs.length,
+    primary_aligned: diff.primary_aligned.length,
     can_apply: blockers.length === 0,
     blockers,
   };

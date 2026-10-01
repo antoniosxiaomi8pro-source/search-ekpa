@@ -226,3 +226,13 @@ test("catalog-sync: a status-only check never un-hides a program hidden by its o
   assert.equal(full.candidate[0].status, "active");
   assert.deepEqual(full.diff.reactivated.map((x) => x.slug), ["alpha"]);
 });
+
+test("catalog-sync: «Κατεύθυνση» is read from the header link, not from the text after it", () => {
+  const html = `<div class="course-category text-md-left"><span class="d-none">Κατεύθυνση:</span>
+    <a class="course-category__link" href="/categories/ygeia" target="_blank">Υγεία</a></div>
+    <div class="course-short-intro"><span><p>Πιστοποιητικό Εξειδικευμένης Επιμόρφωσης </p></span></div>
+    <div><span>Έναρξη Μαθημάτων <strong>19/10/2026</strong></span></div><a href="/apply/1190">Κάνε Αίτηση</a>`;
+  const r = Sync.parseCoursePage(html);
+  assert.equal(r.direction, "Υγεία");
+  assert.equal(r.cms_id, 1190);
+});
