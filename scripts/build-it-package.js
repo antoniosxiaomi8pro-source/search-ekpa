@@ -134,8 +134,9 @@ async function smokeTest(backendDir) {
 
     return { health, typeahead: ta.length, programs: programs.length };
   } finally {
-    server.kill();
-    fs.rmSync(dataDir, { recursive: true, force: true });
+    // Wait for the server to exit before removing its DATA_DIR (it writes there).
+    if (server.exitCode === null) await new Promise((r) => { server.once("exit", r); server.kill(); });
+    fs.rmSync(dataDir, { recursive: true, force: true, maxRetries: 3 });
   }
 }
 
