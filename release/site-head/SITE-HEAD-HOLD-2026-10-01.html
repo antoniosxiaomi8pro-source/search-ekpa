@@ -4,5 +4,5 @@
      Smart Finder takes over. Nothing else on the site is touched.
      SAFE: if Smart Finder / GTM does not load, the list comes back by itself after 3 seconds.
      TO REMOVE: delete these lines. Nothing else depends on them. -->
-<style>html.sf-hold main.content--search .container--search-results{visibility:hidden}html.sf-hold .search-overview__title,html.sf-hold .search-overview__query,html.sf-hold .search-overview__tagline{visibility:hidden}</style>
+<style>html.sf-hold main.content--search .container--search-results{visibility:hidden}html.sf-hold .search-overview__title,html.sf-hold .search-overview__query,html.sf-hold .search-overview__tagline{display:none}</style>
 <script>(function(){try{var l=window.location;if(l.pathname==="/search"&&/[?&]q=[^&]/.test(l.search)){var d=document.documentElement;d.className+=" sf-hold";setTimeout(function(){d.className=d.className.replace(/(^|\s)sf-hold(\s|$)/g," ")},3000)}}catch(e){}})()</script>
