@@ -115,10 +115,17 @@ let PROGRAMS = [];
 let CONCEPTS = {};
 (async function () {
   try {
-    const [progRes, concRes] = await Promise.all([fetch("/api/programs"), fetch("concepts.json", { cache: "no-cache" })]);
+    const [progRes, concRes, lexRes] = await Promise.all([
+      fetch("/api/programs"), fetch("concepts.json", { cache: "no-cache" }),
+      fetch("lexicon.json", { cache: "no-cache" }).catch(() => null), // optional: without it the engine uses its built-in lexicon
+    ]);
     if (!progRes.ok || !concRes.ok) throw new Error("Αποτυχία φόρτωσης δεδομένων καταλόγου");
     PROGRAMS = await progRes.json();
     CONCEPTS = await concRes.json();
+    if (lexRes && lexRes.ok) {
+      try { window.EkpaSearch.setLexicon(await lexRes.json()); }
+      catch (e) { console.warn("Το λεξικό δεν εφαρμόστηκε, χρησιμοποιείται το ενσωματωμένο:", e.message); }
+    }
   } catch (e) {
     const bar = document.createElement("div");
     bar.style.cssText = "background:#fee;color:#900;padding:12px;text-align:center;font-family:sans-serif";

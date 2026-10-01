@@ -87,6 +87,7 @@ details.change-list ul{margin:8px 0 4px 18px;padding:0;font-size:13px}
     <div class="lock-row">
       <input type="password" id="tokenInput" placeholder="Admin token για αποθήκευση…" autocomplete="off">
       <button class="btn btn-secondary" id="unlockBtn">Ξεκλείδωμα</button>
+      <button class="btn btn-secondary" id="exportBtn" type="button" disabled title="Κατεβάζει ένα αρχείο με λεξικό, taxonomy και κατάλογο">⬇ Εξαγωγή δεδομένων</button>
       <span class="locked-note">Χωρίς token μπορείς να δεις τα πάντα, αλλά όχι να αποθηκεύσεις/δεις analytics.</span>
     </div>
     <div id="globalStatus" class="status"></div>
@@ -292,9 +293,30 @@ document.getElementById("unlockBtn").addEventListener("click", () => {
   adminToken = val;
   lockStatusEl.textContent = "🔓 Ξεκλειδωμένο για αποθήκευση";
   saveBtn.disabled = !dirty;
-  ["catalogCheckBtn", "catalogQuickCheckBtn", "catalogRefreshBtn"].forEach((id) => { document.getElementById(id).disabled = false; });
+  ["catalogCheckBtn", "catalogQuickCheckBtn", "catalogRefreshBtn", "exportBtn"].forEach((id) => { document.getElementById(id).disabled = false; });
   showStatus("Token αποθηκεύτηκε για αυτή τη σελίδα (όχι μόνιμα) — μπορείς να αποθηκεύσεις αλλαγές.", "ok");
   if (document.getElementById("tab-catalog").style.display !== "none") loadCatalog(true);
+});
+
+// ---- Export of everything EKPA edits (lexicon, taxonomy, catalog) ----
+document.getElementById("exportBtn").addEventListener("click", async () => {
+  if (!adminToken) { showStatus("Χρειάζεται να ξεκλειδώσεις πρώτα με το admin token.", "err"); return; }
+  const btn = document.getElementById("exportBtn");
+  btn.disabled = true;
+  try {
+    const resp = await fetch("/api/admin/export", { headers: { "x-admin-token": adminToken } });
+    if (!resp.ok) { const j = await resp.json().catch(() => ({})); throw new Error(j.error || ("HTTP " + resp.status)); }
+    const blob = await resp.blob();
+    const m = /filename="([^"]+)"/.exec(resp.headers.get("Content-Disposition") || "");
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = m ? m[1] : "ekpa-smart-finder-export.json";
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+    showStatus("Η εξαγωγή κατέβηκε: " + a.download, "ok");
+  } catch (e) {
+    showStatus("Η εξαγωγή απέτυχε: " + e.message, "err");
+  } finally { btn.disabled = !adminToken; }
 });
 
 // ---- Analytics tab ----

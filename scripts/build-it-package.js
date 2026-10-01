@@ -150,8 +150,15 @@ async function smokeTest(backendDir) {
     const cat = await adminOk.json();
     if (!cat || !cat.live || cat.live.active !== health.active_programs || cat.live.inactive !== health.programs - health.active_programs) fail("/api/admin/catalog: μη αναμενόμενη απάντηση: " + JSON.stringify(cat).slice(0, 300));
     if ((await fetch(`${base}/api/admin/catalog`)).status !== 401) fail("GET /api/admin/catalog χωρίς token δεν απορρίφθηκε.");
+    // Search lexicon (R1): seeded into DATA_DIR from the package, served, applied without errors.
+    const lexicon = await getJson("/lexicon.json");
+    if (!lexicon || lexicon.schema_version !== 1 || !Array.isArray(lexicon.stopwords) || !lexicon.stopwords.length) fail("/lexicon.json: μη αναμενόμενη μορφή.");
+    if (!fs.existsSync(path.join(dataDir, "lexicon.json"))) fail("Το λεξικό του πακέτου δεν αντιγράφηκε στο DATA_DIR στο πρώτο ξεκίνημα.");
+    const lexStatus = await (await fetch(`${base}/api/admin/lexicon`, { headers: { "x-admin-token": SMOKE_TOKEN } })).json();
+    if (lexStatus.error || lexStatus.source !== "data_dir") fail("Λεξικό: " + JSON.stringify({ source: lexStatus.source, error: lexStatus.error }));
     const adminPage = await (await fetch(`${base}/admin-taxonomy.html`)).text();
     if (!adminPage.includes("Κατάλογος")) fail("Το admin-taxonomy.html δεν έχει την καρτέλα Κατάλογος.");
+    if (!adminPage.includes("exportBtn")) fail("Το admin-taxonomy.html δεν έχει το κουμπί εξαγωγής.");
 
     const allowed = await fetch(`${base}/api/search?q=hr`, { headers: ORIGIN });
     if (allowed.headers.get("access-control-allow-origin") !== "https://elearningekpa.gr") fail("CORS: δεν επιτρέπεται το https://elearningekpa.gr.");

@@ -18,6 +18,7 @@ const CatalogSync = require("./catalog-sync.js");
 const { isActive } = CatalogSync;
 const { CatalogStore } = require("./catalog-store.js");
 const RankingDiff = require("./ranking-diff.js");
+const { LexiconStore } = require("./lexicon-store.js");
 
 const PUBLIC_DIR = path.join(__dirname, "../public");
 // ---- Persistent data directory ----
@@ -41,6 +42,18 @@ if (DATA_DIR) {
   }
 }
 let CONCEPTS = JSON.parse(fs.readFileSync(CONCEPTS_PATH, "utf-8"));
+
+// ---- Search lexicon (stopwords, category words, audience, topics) ----
+// Same rule as the taxonomy: the package ships a seed (public/lexicon.json), copied to
+// DATA_DIR only when DATA_DIR has none, and the live copy is edited by EKPA staff. A broken
+// file never stops the server: the engine keeps its built-in tables (server/lexicon-store.js).
+const lexiconStore = new LexiconStore({
+  seedFile: path.join(PUBLIC_DIR, "lexicon.json"),
+  dataDir: DATA_DIR,
+  engine: EkpaSearch,
+  log: (m) => console.log(m),
+});
+lexiconStore.load();
 
 // ---- Catalog ----
 // Live catalog = the NEWEST check between the package's public/programs.json and the
@@ -333,6 +346,13 @@ app.use(express.json({ limit: "64kb" }));
 app.get("/concepts.json", (req, res) => {
   res.set("Cache-Control", "no-cache");
   res.json(CONCEPTS);
+});
+// Current lexicon, from memory (always the latest saved version). Before express.static.
+app.get("/lexicon.json", (req, res) => {
+  res.set("Cache-Control", "no-cache");
+  const lex = lexiconStore.current();
+  if (!lex) return res.status(503).json({ error: "Το λεξικό δεν είναι διαθέσιμο." });
+  res.json(lex);
 });
 // The raw file is also reachable as a static asset; serve the same visitor-facing list
 // as /api/programs so hidden programs don't leak through it.
@@ -673,6 +693,24 @@ app.post("/api/admin/concepts", adminLimiter, checkAdminToken, (req, res) => {
     console.error("Αποτυχία εγγραφής concepts.json:", err);
     res.status(500).json({ error: "Αποτυχία αποθήκευσης στον server." });
   }
+});
+
+// ---- Admin: lexicon status and full data export ----
+app.get("/api/admin/lexicon", catalogStatusLimiter, checkAdminToken, (req, res) => {
+  res.json({ ...lexiconStore.status(), lexicon: lexiconStore.current() });
+});
+// Everything EKPA edits, in one file: lexicon, taxonomy and the full catalog (also hidden programs).
+app.get("/api/admin/export", adminLimiter, checkAdminToken, (req, res) => {
+  const day = new Date().toISOString().slice(0, 10);
+  res.set("Content-Disposition", `attachment; filename="ekpa-smart-finder-export-${day}.json"`);
+  res.json({
+    exported_at: new Date().toISOString(),
+    format: 1,
+    lexicon: lexiconStore.current(),
+    lexicon_status: { source: lexiconStore.status().source, error: lexiconStore.status().error },
+    concepts: CONCEPTS,
+    catalog: { meta: catalogStore.meta, programs: ALL_PROGRAMS },
+  });
 });
 
 // ---- Admin: analytics visibility (Phase 1 — read-only, see HANDOVER-NOTES.md) ----
