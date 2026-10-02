@@ -1,0 +1,326 @@
+<!doctype html>
+<html lang="el">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>EKPA Smart Finder — Εγχειρίδιο Χρήσης & Διαχείρισης</title>
+<style>
+:root{--ink:#172033;--muted:#667085;--line:#e5e7eb;--soft:#f7f8fa;--brand:#183b63;--accent:#1f6f8b;--ok:#137a55;--warn:#9a6700;--err:#b3261e}
+*{box-sizing:border-box} body{margin:0;font:15px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;color:var(--ink);background:#fff}
+.wrap{max-width:1100px;margin:auto;padding:38px 28px 70px}
+header{border-bottom:3px solid var(--brand);padding-bottom:24px;margin-bottom:30px}
+.eyebrow{font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--accent);font-weight:700}
+h1{font-size:34px;line-height:1.15;margin:8px 0 10px} h2{font-size:24px;margin:38px 0 12px;color:var(--brand)}
+h3{font-size:18px;margin:26px 0 8px} h4{font-size:15px;margin:18px 0 6px}
+p{margin:8px 0 12px}.muted{color:var(--muted)} .small{font-size:13px}
+nav{background:var(--soft);border:1px solid var(--line);padding:18px 22px;border-radius:10px;margin:24px 0}
+nav a{color:var(--brand);text-decoration:none} nav ol{columns:2;margin:8px 0;padding-left:22px}
+.card{border:1px solid var(--line);border-radius:10px;padding:18px 20px;margin:14px 0;background:#fff}
+.note{border-left:4px solid var(--accent);background:#f4f9fb;padding:12px 16px;margin:16px 0}
+.warn{border-left-color:var(--warn);background:#fff9e8}.ok{border-left-color:var(--ok);background:#f1fbf7}.err{border-left-color:var(--err);background:#fdf1f0}
+code{background:#f2f4f7;padding:2px 5px;border-radius:4px;font-size:13px}
+pre{background:#111827;color:#f9fafb;padding:14px 16px;border-radius:8px;overflow:auto;font-size:13px}
+table{width:100%;border-collapse:collapse;margin:14px 0 20px;font-size:14px} th,td{border:1px solid var(--line);padding:9px 10px;vertical-align:top;text-align:left} th{background:var(--soft)}
+.flow{font-weight:650;text-align:center;padding:15px;background:var(--soft);border-radius:8px;margin:14px 0}
+ul,ol{padding-left:23px} li{margin:4px 0}.badge{display:inline-block;padding:2px 8px;border-radius:999px;background:#eef4f8;color:var(--brand);font-size:12px;font-weight:700}
+.who{display:inline-block;padding:1px 8px;border-radius:999px;font-size:12px;font-weight:700;margin-right:4px}.who.ekpa{background:#e8f5ee;color:var(--ok)}.who.it{background:#eaf1fb;color:#1849a9}.who.bra{background:#fff4e5;color:var(--warn)}
+footer{margin-top:50px;padding-top:18px;border-top:1px solid var(--line);color:var(--muted);font-size:12px}
+.credit{margin-top:10px;font-weight:700;color:var(--brand);font-size:13px}
+@media(max-width:700px){.wrap{padding:24px 16px}h1{font-size:28px}nav ol{columns:1}table{display:block;overflow-x:auto}}
+@media print{nav{break-inside:avoid}.card,.note,table{break-inside:avoid}.wrap{max-width:none;padding:20px}a{color:inherit;text-decoration:none}}
+</style>
+</head>
+<body><main class="wrap">
+<header>
+<div class="eyebrow">E-Learning ΕΚΠΑ · Smart Finder</div>
+<h1>Εγχειρίδιο Χρήσης & Διαχείρισης</h1>
+<p class="muted">Front-end · GTM · Search API · Admin (Taxonomy, Κατάλογος, Λεξικό) · Analytics · Operations · Παράδοση εκδόσεων · Troubleshooting</p>
+<p class="small"><strong>Βάση εγχειριδίου:</strong> IT package 02/10/2026 · GTM widget v30 · Backend με λεξικό (R1 + R3.1) · 174 αυτοματοποιημένα tests</p>
+<p class="small"><strong>Ποιος κάνει τι:</strong>
+<span class="who ekpa">ΕΚΠΑ</span> δεδομένα (κατάλογος, taxonomy, λεξικό) ·
+<span class="who it">IT</span> εγκατάσταση, server, GTM, site ·
+<span class="who bra">Brandery</span> κώδικας και πακέτα</p>
+</header>
+
+<div class="note"><strong>Σκοπός.</strong> Το εγχειρίδιο περιγράφει την τρέχουσα έκδοση του Smart Finder: τι βλέπει ο επισκέπτης, τι διαχειρίζεται το ΕΚΠΑ από τη σελίδα admin, τι απαιτεί πρόσβαση στον server ή στο GTM και πώς παραδίδονται οι νέες εκδόσεις. Αντικαθιστά το εγχειρίδιο της 25/09/2026 (widget v18, backend v4).</div>
+
+<nav><strong>Περιεχόμενα</strong><ol>
+<li><a href="#overview">Επισκόπηση</a></li><li><a href="#front">Front-end: χρήση από επισκέπτη</a></li>
+<li><a href="#gtm">GTM / Widget</a></li><li><a href="#search">Search API</a></li>
+<li><a href="#admin">Admin: γενικά</a></li><li><a href="#taxonomy">Admin: Taxonomy</a></li>
+<li><a href="#catalog">Admin: Κατάλογος προγραμμάτων</a></li><li><a href="#lexicon">Admin: Λεξικό</a></li>
+<li><a href="#analytics">Analytics</a></li><li><a href="#backend">Backend / Operations</a></li>
+<li><a href="#security">Ασφάλεια</a></li><li><a href="#delivery">Εκδόσεις και παράδοση πακέτων</a></li>
+<li><a href="#testing">Testing → Production</a></li><li><a href="#trouble">Troubleshooting</a></li>
+<li><a href="#checklists">Checklists και κύκλος εργασιών</a></li><li><a href="#history">Ιστορικό εκδόσεων</a></li>
+</ol></nav>
+
+<section id="overview">
+<h2>1. Επισκόπηση</h2>
+<div class="flow">elearningekpa.gr → GTM Smart Finder Widget → HTTPS → smartfinder backend → Search Engine → αποτελέσματα</div>
+<p>Το Smart Finder είναι ανεξάρτητο από τον κώδικα του Symfony/PHP site. Το widget εισάγεται μέσω Google Tag Manager και καλεί το backend μέσω HTTPS. Η αναζήτηση γίνεται στον Node.js/Express server, που κρατά στη μνήμη τον κατάλογο, το taxonomy και το λεξικό. Δεν υπάρχει βάση δεδομένων: όλα τα δεδομένα είναι αρχεία JSON στον φάκελο <code>DATA_DIR</code>.</p>
+<table><tr><th>Στοιχείο</th><th>Ρόλος</th></tr>
+<tr><td>Website</td><td>Παρέχει τα search inputs, τη σελίδα <code>/search</code> και τις σελίδες προγραμμάτων και κατηγοριών.</td></tr>
+<tr><td>GTM widget v30</td><td>Συνδέεται στα search boxes, δείχνει dropdown προτάσεων και τη σελίδα αποτελεσμάτων μέσα στο <code>/search</code>.</td></tr>
+<tr><td>Backend</td><td>Search API, admin, health check, tracking και προαιρετικό AI chat.</td></tr>
+<tr><td><code>programs.json</code></td><td>Κατάλογος 702 προγραμμάτων, από τα οποία 693 ενεργά (δέχονται αιτήσεις). Ενημερώνεται από το κουμπί «Κατάλογος».</td></tr>
+<tr><td><code>concepts.json</code></td><td>Taxonomy / query expansion (62 έννοιες, 429 όροι).</td></tr>
+<tr><td><code>lexicon.json</code></td><td>Λεξικό: λέξεις που αγνοούνται, λέξη→κατηγορία, κοινό/επάγγελμα, θέματα.</td></tr>
+<tr><td><code>analytics.json</code></td><td>Aggregate στατιστικά αναζητήσεων και clicks του backend.</td></tr></table>
+<h3>Δύο περιβάλλοντα</h3>
+<table><tr><th></th><th>Production (server του IT)</th><th>Railway (testing, Brandery)</th></tr>
+<tr><td>URL</td><td><code>https://smartfinder.elearningekpa.gr</code></td><td><code>https://nodejs-production-5371.up.railway.app</code></td></tr>
+<tr><td>Ποιος το αλλάζει</td><td>Το IT εγκαθιστά πακέτα. Το ΕΚΠΑ αλλάζει δεδομένα από το admin.</td><td>Μόνο η Brandery.</td></tr>
+<tr><td>GTM tag</td><td>Ξεχωριστό production tag (αρχείο <code>…PRODUCTION.txt</code>)</td><td><code>SmartFinder - TESTING2</code> (δεν το αγγίζει κανείς άλλος)</td></tr></table>
+</section>
+
+<section id="front">
+<h2>2. Front-end: χρήση από επισκέπτη</h2>
+<p>Ο επισκέπτης πληκτρολογεί κανονικά στο search box. Το widget ζητά live αποτελέσματα και τα εμφανίζει σε dropdown. Με Enter ή με το εικονίδιο της αναζήτησης ανοίγει η σελίδα <code>/search?q=…</code> της ίδιας της ιστοσελίδας, όπου το Smart Finder εμφανίζει τη λίστα αποτελεσμάτων.</p>
+<h3>Search boxes που υποστηρίζει το widget</h3>
+<table><tr><th>Selector</th><th>Θέση</th></tr>
+<tr><td><code>#qHeroFront</code></td><td>Αρχική σελίδα</td></tr>
+<tr><td><code>#qNav</code></td><td>Header desktop</td></tr>
+<tr><td><code>#qNavMobile</code></td><td>Header mobile</td></tr>
+<tr><td><code>#qAside</code></td><td>Σελίδα κατηγορίας</td></tr>
+<tr><td><code>#qSearch</code></td><td>Σελίδα αποτελεσμάτων <code>/search</code></td></tr></table>
+<h3>Dropdown προτάσεων</h3>
+<ul><li>Εμφανίζεται από 2 χαρακτήρες και πάνω, με μικρή καθυστέρηση (περίπου 0,2 δευτ.) ώστε να μη στέλνεται αίτημα σε κάθε πλήκτρο.</li>
+<li>Δείχνει έως 6 προγράμματα, με εικόνα και τίτλο. Οι τίτλοι τυλίγονται σε πολλές γραμμές.</li>
+<li>Mouse-over και πλήκτρα βελών δίνουν highlight. Το κλικ ανοίγει το πρόγραμμα.</li></ul>
+<h3>Σελίδα αποτελεσμάτων (<code>/search?q=…</code>)</h3>
+<ul><li>Τίτλος «Αποτελέσματα αναζήτησης», πλήθος αποτελεσμάτων και ταξινόμηση <strong>Σχετικότητα</strong> ή <strong>Τιμή (χαμηλότερη προς υψηλότερη)</strong>.</li>
+<li>Κάθε αποτέλεσμα είναι κάρτα: εικόνα (περίπου 38% της γραμμής, σχήμα 16:9, πάνω από την περιγραφή σε κινητό), τίτλος, περιγραφή έως 5 γραμμές, <strong>Κατευθύνσεις</strong> και <strong>Σχετικά Προγράμματα</strong>.</li>
+<li><strong>Κατευθύνσεις:</strong> όλες οι κατηγορίες του προγράμματος ως links προς τις επίσημες σελίδες κατηγορίας του site. Κατηγορία που δεν υπάρχει στο site δεν γίνεται link.</li>
+<li><strong>Σχετικά Προγράμματα:</strong> έως 8, ως links.</li>
+<li>40 αποτελέσματα ανά σελίδα, με κουμπί «Εμφάνιση περισσότερων».</li>
+<li>Δεν εμφανίζονται <strong>προγράμματα που δεν δέχονται αιτήσεις</strong> (π.χ. έληξε η προθεσμία τους). Επανεμφανίζονται όταν ανοίξουν ξανά.</li>
+<li>Οι τιμές δεν εμφανίζονται στις κάρτες (εκκρεμεί απόφαση για την τιμή που δείχνουμε). Η ταξινόμηση ανά τιμή χρησιμοποιεί την τρέχουσα τιμή κύκλου.</li></ul>
+<h3>Τι «καταλαβαίνει» η αναζήτηση</h3>
+<ul><li>Ελληνικά με ή χωρίς τόνους, πεζά/κεφαλαία, και <strong>Greeklish</strong> (π.χ. «psixologia»).</li>
+<li>Μικρά ορθογραφικά λάθη (π.χ. «ψυχολοια» βρίσκει «Ψυχολογία»).</li>
+<li>Συνώνυμα και συγγενείς όροι μέσω του <strong>taxonomy</strong> (π.χ. «ΑΙ», «τεχνητή νοημοσύνη»).</li>
+<li>Ονόματα <strong>κατηγοριών</strong> και λέξεις του <strong>λεξικού</strong> (π.χ. «ναυτικός» → Ναυτιλιακά, «δάσκαλος» → Παιδαγωγικά).</li></ul>
+<div class="note"><strong>Προαιρετικό block στο &lt;head&gt; του site.</strong> Ένα tag του GTM τρέχει πάντα λίγο μετά την εμφάνιση της σελίδας. Για να μη φαίνεται για κλάσμα του δευτερολέπτου η λίστα του ίδιου του site στο <code>/search</code>, υπάρχει το αρχείο <code>SITE-HEAD-HOLD-2026-10-01.html</code> (δύο μικρά blocks, χωρίς εξωτερικούς πόρους). Μπαίνει στο <code>&lt;head&gt;</code> όλων των σελίδων, <strong>πάνω από το snippet του GTM</strong>. Αν το GTM δεν φορτώσει, η λίστα του site επανέρχεται μόνη της σε 3 δευτερόλεπτα. Διαγράφεται με σβήσιμο των δύο blocks.</div>
+</section>
+
+<section id="gtm">
+<h2>3. GTM — διαχείριση του widget</h2>
+<p><span class="who it">IT</span> Το widget διαχειρίζεται ανεξάρτητα από το Symfony, ως Custom HTML tag στο GTM container <code>GTM-TZJNFCW</code>.</p>
+<table><tr><th>Στοιχείο</th><th>Τιμή</th></tr>
+<tr><td>Αρχείο production</td><td><code>ekpa-search-widget-gtm-v30-PRODUCTION.txt</code> (δείχνει στο <code>https://smartfinder.elearningekpa.gr</code>)</td></tr>
+<tr><td>Αρχείο testing</td><td><code>…-VALIDATED.txt</code> (δείχνει στο Railway, μόνο για το tag <code>SmartFinder - TESTING2</code>)</td></tr>
+<tr><td>Backend URL</td><td><strong>Είναι γραμμένο μέσα στο αρχείο</strong> (γραμμή <code>var BACKEND_URL = "…"</code>). Δεν χρησιμοποιείται GTM variable, γιατί ο editor του GTM απορρίπτει το tag όταν περιέχει αναφορά σε variable.</td></tr>
+<tr><td>Γλώσσα</td><td>ES5. Το GTM δεν δέχεται νεότερη σύνταξη (<code>let</code>, <code>const</code>, arrow functions, template literals).</td></tr>
+<tr><td>Trigger</td><td>Προτείνεται «Initialization - All Pages» (η νωρίτερη στιγμή που τρέχει tag στο GTM).</td></tr>
+<tr><td>GA4</td><td><code>G-ZL8304SEHG</code> (events αναλύονται στο κεφάλαιο Analytics)</td></tr></table>
+<div class="note warn"><strong>Σειρά:</strong> πρώτα εγκαθίσταται και επαληθεύεται ο <strong>backend</strong>, και μόνο μετά δημοσιεύεται το production tag. Το tag <code>SmartFinder - TESTING2</code> δεν τροποποιείται, δεν μετονομάζεται και δεν δημοσιεύεται.</div>
+<h3>Πριν από Publish</h3>
+<ol><li>Preview/Tag Assistant και έλεγχος ότι το tag κάνει fire στις σωστές σελίδες.</li><li>Network check: το <code>/api/search</code> απαντά HTTP 200.</li><li>Έλεγχος σε <code>/search?q=ναυτιλία</code>: κάρτες, κατηγορίες που ανοίγουν, κανένα κενό πάνω από τα αποτελέσματα, δεν φαίνεται η λίστα του site.</li><li>Έλεγχος Pending Changes ώστε να μην περιλαμβάνονται άσχετες αλλαγές.</li><li>Δεύτερος έλεγχος από μέλος του IT όταν το GTM container είναι κοινό με production.</li></ol>
+</section>
+
+<section id="search">
+<h2>4. Search API</h2>
+<table><tr><th>Endpoint</th><th>Χρήση</th></tr>
+<tr><td><code>GET /health</code></td><td>Health check: <code>{"ok":true,"programs":702,"active_programs":693}</code>. Το <code>programs</code> είναι ο συνολικός κατάλογος, το <code>active_programs</code> όσα βλέπουν οι επισκέπτες.</td></tr>
+<tr><td><code>GET /api/search?q=…&amp;limit=6&amp;fields=compact</code></td><td>Προτάσεις για το dropdown.</td></tr>
+<tr><td><code>GET /api/search?q=…&amp;format=paged&amp;page=1&amp;page_size=40&amp;sort=relevance|price_asc</code></td><td>Σελίδα αποτελεσμάτων: <code>{results, pagination}</code>.</td></tr>
+<tr><td><code>GET /api/programs</code></td><td>Ο κατάλογος που βλέπουν οι επισκέπτες (μόνο ενεργά), με <code>category_links</code>. Ο browser το επανελέγχει σε κάθε επίσκεψη (ETag), ώστε να μη μένει παλιά έκδοση.</td></tr>
+<tr><td><code>GET /concepts.json</code>, <code>GET /lexicon.json</code></td><td>Το ισχύον taxonomy και λεξικό.</td></tr>
+<tr><td><code>POST /api/track-search</code>, <code>POST /api/track-click</code></td><td>Backend analytics.</td></tr>
+<tr><td><code>POST /api/chat</code></td><td>Προαιρετικός AI βοηθός (server-side proxy). Δεν επηρεάζει την αναζήτηση.</td></tr></table>
+<p>Η μηχανή αναζήτησης είναι το <code>public/search-engine.js</code>, ο ίδιος κώδικας για τον server και τη σελίδα δοκιμών. Είναι <strong>προστατευμένος</strong>: αλλάζει μόνο με πλήρη έλεγχο ότι τα αποτελέσματα μένουν ίδια (regression tests σε ελεγμένες αναζητήσεις). Τα δεδομένα που αλλάζει το ΕΚΠΑ (κατάλογος, taxonomy, λεξικό) δίνονται στη μηχανή ως είσοδος και δεν χρειάζονται αλλαγή του κώδικα.</p>
+<p>Οι απαντήσεις έχουν <code>Vary: Origin</code> και το CORS επιτρέπει μόνο τα origins του <code>ALLOWED_ORIGINS</code>.</p>
+</section>
+
+<section id="admin">
+<h2>5. Admin — γενικά</h2>
+<p><span class="who ekpa">ΕΚΠΑ</span> Το <code>admin-taxonomy.html</code> επιτρέπει στην εξουσιοδοτημένη ομάδα να αλλάζει δεδομένα χωρίς developer και χωρίς redeploy.</p>
+<h3>Πρόσβαση</h3>
+<ol><li>Άνοιγμα <code>https://smartfinder.elearningekpa.gr/admin-taxonomy.html</code>.</li><li>Εισαγωγή του <code>ADMIN_TOKEN</code> και «Ξεκλείδωμα».</li><li>Επιλογή καρτέλας.</li></ol>
+<table><tr><th>Καρτέλα</th><th>Τι αλλάζει</th><th>Ισχύει</th></tr>
+<tr><td>🏷️ Taxonomy</td><td>Έννοιες και όροι αναζήτησης</td><td>Αμέσως μετά το Save</td></tr>
+<tr><td>📊 Analytics</td><td>Μόνο ανάγνωση: top αναζητήσεις, αναζητήσεις χωρίς αποτέλεσμα, δημοφιλή προγράμματα</td><td>—</td></tr>
+<tr><td>📚 Κατάλογος</td><td>Ποια προγράμματα είναι ενεργά, τιμές, νέα προγράμματα, κενά στοιχεία</td><td>Αμέσως μετά το «Εφαρμογή»</td></tr>
+<tr><td>📖 Λεξικό</td><td>Λέξεις που αγνοούνται, λέξη→κατηγορία, κοινό/επάγγελμα, θέματα</td><td>Αμέσως μετά την Αποθήκευση</td></tr></table>
+<p>Το κουμπί <strong>⬇ Εξαγωγή δεδομένων</strong> (δίπλα στο Ξεκλείδωμα) κατεβάζει ένα αρχείο με λεξικό, taxonomy και ολόκληρο τον κατάλογο (και τα κρυμμένα προγράμματα).</p>
+<div class="note ok"><strong>Δεν απαιτείται restart ή redeploy</strong> για καμία αλλαγή δεδομένων από το admin. Όλες οι αλλαγές γράφονται στο <code>DATA_DIR</code> και φορτώνονται αμέσως στη μνήμη.</div>
+<div class="note warn"><strong>Δικαιώματα:</strong> σήμερα υπάρχει ένα κοινό <code>ADMIN_TOKEN</code>. Το μοντέλο δικαιωμάτων (ένα token ανά ρόλο, λογαριασμοί ή login ΕΚΠΑ) θα οριστεί με το IT.</div>
+</section>
+
+<section id="taxonomy">
+<h2>6. Admin: Taxonomy</h2>
+<ol><li>Φόρτωση του τρέχοντος taxonomy.</li><li>Προσθήκη/αφαίρεση concepts και όρων.</li><li>Save.</li></ol>
+<ul><li>Κάθε concept έχει τουλάχιστον 1 όρο, έως 100 όρους, έως 200 χαρακτήρες ανά όρο.</li>
+<li>Υπάρχει έλεγχος στον server πριν την αποθήκευση και προειδοποίηση όταν η αλλαγή αλλάζει ήδη ελεγμένες αναζητήσεις.</li>
+<li>Όρια: 10 αιτήματα/λεπτό ανά IP στα admin endpoints.</li></ul>
+</section>
+
+<section id="catalog">
+<h2>7. Admin: Κατάλογος προγραμμάτων</h2>
+<p><span class="who ekpa">ΕΚΠΑ</span> Η καρτέλα <strong>📚 Κατάλογος</strong> ενημερώνει τον κατάλογο από το elearningekpa.gr. Αναλυτικός οδηγός: <code>ADMIN-CATALOG-GUIDE.md</code>.</p>
+<h3>Τι κάνει ο έλεγχος</h3>
+<ul><li><strong>Κρύβει</strong> τα προγράμματα που δεν δέχονται αιτήσεις (δεν υπάρχουν στον «Τρέχοντα Κύκλο» ή η σελίδα τους γράφει «Το πρόγραμμα δεν είναι διαθέσιμο»). Δεν διαγράφονται: μένουν στο αρχείο και ξαναεμφανίζονται όταν ανοίξουν.</li>
+<li><strong>Προσθέτει</strong> τα νέα προγράμματα του κύκλου, πλήρη (id, κατηγορία, περιγραφή, έννοιες, σχετικά).</li>
+<li><strong>Ενημερώνει τις τιμές</strong> (η τιμή του κύκλου, με την έκπτωση που ισχύει) και κρατά τη βασική τιμή χωριστά.</li>
+<li><strong>Συμπληρώνει κενά</strong> σε υπάρχοντα προγράμματα, αλλά ποτέ δεν αλλάζει πεδίο που έχει ήδη τιμή.</li></ul>
+<h3>Πώς γίνεται</h3>
+<ol><li>Πάτα <strong>🔍 Έλεγχος καταλόγου</strong>. Διαρκεί περίπου 25 λεπτά και τρέχει στον server. Μπορείς να κλείσεις τη σελίδα και να γυρίσεις αργότερα.</li>
+<li>Δες το αποτέλεσμα: λίστα αλλαγών και <strong>αλλαγές στα αποτελέσματα αναζήτησης</strong> για ελεγμένες αναζητήσεις, κατηγορίες και έννοιες.</li>
+<li>Πάτα <strong>Εφαρμογή</strong> αν συμφωνείς. Πριν κάθε εφαρμογή κρατιέται αυτόματα backup.</li>
+<li>Αν χρειαστεί: <strong>Επαναφορά</strong> της προηγούμενης έκδοσης με ένα κλικ.</li></ol>
+<p>Το <strong>⚡ γρήγορο</strong> κουμπί ελέγχει σε λίγα δευτερόλεπτα μόνο ποια προγράμματα είναι ενεργά (όχι τιμές, όχι νέα). Η καρτέλα εμφανίζει υπενθύμιση όταν ο «Τρέχων Κύκλος» του site έχει αλλαγές.</p>
+<h3>Δικλείδες ασφαλείας</h3>
+<ul><li>Αν η λίστα του κύκλου είναι λιγότερη από το 50% του καταλόγου, ή θα κρυφτεί πάνω από το 15% των προγραμμάτων, ή θα αλλάξουν πάνω από 30% των τιμών, η <strong>Εφαρμογή κλειδώνει</strong> (ύποπτο αποτέλεσμα, π.χ. το site δεν είχε ενημερωθεί).</li>
+<li>Η λίστα του site διαβάζεται αργά, μία σελίδα ανά 2 δευτερόλεπτα, για να μην επιβαρύνεται το site.</li></ul>
+<h3>Δύο δρόμοι για τον κατάλογο: ο νεότερος έλεγχος υπερισχύει</h3>
+<p>Το πακέτο φέρνει έναν ελεγμένο κατάλογο και το ΕΚΠΑ μπορεί να πατά το κουμπί. Ο server χρησιμοποιεί <strong>όποιον έχει νεότερη ημερομηνία ελέγχου</strong>. Αν κερδίσει ο κατάλογος ενός νέου πακέτου, ο κατάλογος του <code>DATA_DIR</code> κρατιέται πρώτα ως backup. Η καρτέλα δείχνει πάντα ποιος ισχύει (πακέτο, κουμπί ή επαναφορά) και με ποια ημερομηνία.</p>
+<div class="note"><strong>Μελλοντική πηγή:</strong> όταν το IT δώσει feed ή endpoint του καταλόγου, το κουμπί μένει ίδιο και αλλάζει μόνο η πηγή.</div>
+</section>
+
+<section id="lexicon">
+<h2>8. Admin: Λεξικό</h2>
+<p><span class="who ekpa">ΕΚΠΑ</span> Το λεξικό λέει στην αναζήτηση πώς να καταλαβαίνει λέξεις όπως «δάσκαλος», «ναυτικός» ή «σεφ». Αλλάζει από την καρτέλα <strong>📖 Λεξικό</strong>, χωρίς developer και χωρίς νέο πακέτο. Αναλυτικός οδηγός: <code>ADMIN-LEXICON-GUIDE.md</code>.</p>
+<table><tr><th>Ενότητα</th><th>Τι κάνει</th><th>Παράδειγμα</th></tr>
+<tr><td>🚫 Λέξεις που αγνοούνται</td><td>Λέξεις χωρίς νόημα για την αναζήτηση</td><td>και, για, πρόγραμμα</td></tr>
+<tr><td>🏷️ Λέξη → κατηγορία</td><td>Η λέξη δείχνει όλη την κατηγορία. Ισχύει και μέσα σε φράση.</td><td>«ναυτικός» → Ναυτιλιακά</td></tr>
+<tr><td>👥 Κοινό / επάγγελμα</td><td>Ισχύει όταν ο επισκέπτης γράφει μόνο τη λέξη. Δείχνει κατηγορίες ή συγκεκριμένα προγράμματα.</td><td>«δάσκαλος» → Παιδαγωγικά και Μοριοδοτούμενα</td></tr>
+<tr><td>🍳 Θέματα</td><td>Για θέματα χωρίς δική τους κατηγορία. Δείχνει μόνο τα προγράμματα που επιλέγεις.</td><td>«σεφ» → 2 προγράμματα μαγειρικής</td></tr></table>
+<p>Γράφονται κανονικά ελληνικά. Οι τόνοι και τα κεφαλαία καλύπτονται αυτόματα. Οι <strong>κλίσεις δεν καλύπτονται</strong>: γράψε χωριστά ενικό, πληθυντικό και γενική (π.χ. δάσκαλος, δασκάλου, δασκάλων).</p>
+<h3>Πώς αλλάζεις το λεξικό</h3>
+<ol><li>Κάνε τις αλλαγές στις ενότητες.</li><li>Πάτα <strong>🔍 Προεπισκόπηση αλλαγών</strong>. Δείχνει τι αλλάζει στα αποτελέσματα, χωρίς να αγγίζει τους επισκέπτες.</li><li>Διάβασε την προεπισκόπηση και τις προειδοποιήσεις.</li><li>Πάτα <strong>💾 Αποθήκευση</strong> και επιβεβαίωσε. Ισχύει αμέσως.</li><li>Αν χρειαστεί: <strong>⏪ Επαναφορά προηγούμενης έκδοσης</strong>.</li></ol>
+<h3>Τι δείχνει η προεπισκόπηση</h3>
+<ul><li>Πώς αλλάζει η αναζήτηση για τις λέξεις που άλλαξες (αναμενόμενο).</li><li>Ποιες <strong>άλλες</strong> αναζητήσεις αλλάζουν (ελεγμένες, κατηγορίες, έννοιες). Εκεί χρειάζεται έλεγχος.</li><li>Για κάθε αναζήτηση, <strong>κάθε αλλαγή στα 3 πρώτα αποτελέσματα</strong>: πρόγραμμα που μπαίνει, ανεβαίνει, φεύγει ή αλλάζει θέση.</li></ul>
+<h3>Προειδοποιήσεις και σφάλματα</h3>
+<table><tr><th>Μήνυμα</th><th>Σημασία</th></tr>
+<tr><td>Η λέξη ταιριάζει ήδη με την κατηγορία «…»</td><td>Η αναζήτηση τη βλέπει ως κατηγορία πριν φτάσει στον κανόνα σου, άρα ο κανόνας <strong>δεν θα ισχύσει</strong>. Εμφανίζεται ζωντανά, ενώ γράφεις.</td></tr>
+<tr><td>Η ομάδα έχει λέξεις αλλά κανένα πρόγραμμα/κατηγορία</td><td>Σφάλμα: δεν αποθηκεύεται.</td></tr>
+<tr><td>Το πρόγραμμα είναι κρυμμένο ή δεν υπάρχει πια</td><td>Δεν θα εμφανίζεται. Αφαίρεσέ το ή περίμενε να ανοίξει.</td></tr>
+<tr><td>Η κατηγορία δεν υπάρχει στον κατάλογο</td><td>Σφάλμα: δεν αποθηκεύεται.</td></tr>
+<tr><td>Η λέξη που θα αγνοείται υπάρχει σε Ν τίτλους</td><td>Οι αναζητήσεις με αυτή τη λέξη θα αλλάξουν.</td></tr></table>
+<h3>Ασφάλεια του λεξικού</h3>
+<ul><li>Πριν κάθε αποθήκευση κρατιέται backup (τα 20 τελευταία).</li>
+<li>Αν αποθηκεύσει κάποιος άλλος στο μεταξύ, η αποθήκευσή σου απορρίπτεται, ώστε να μη χαθεί η δική του αλλαγή.</li>
+<li><strong>Ένα νέο πακέτο δεν αντικαθιστά ποτέ το λεξικό του ΕΚΠΑ.</strong> Το λεξικό του πακέτου αντιγράφεται στο <code>DATA_DIR</code> μόνο αν δεν υπάρχει.</li>
+<li>Αν το αρχείο του λεξικού χαλάσει, ο server <strong>δεν σταματά</strong>: χρησιμοποιεί το ενσωματωμένο λεξικό και δείχνει το πρόβλημα στην καρτέλα.</li></ul>
+</section>
+
+<section id="analytics">
+<h2>9. Analytics και παρακολούθηση</h2>
+<p>Υπάρχουν δύο επίπεδα, που συμπληρώνουν το ένα το άλλο.</p>
+<div class="card"><strong>A. GA4 (πηγή δεδομένων χρήσης)</strong><br>Events από τον browser: <code>search</code> (όρος αναζήτησης), <code>select_content</code> (επιλογή προγράμματος από το dropdown) και <code>search_no_results</code>. Δίνει <strong>χρονική διάσταση</strong> (ανά κύκλο) και τι κάνει ο επισκέπτης στο site. Απαιτεί ρύθμιση: custom dimensions <code>search_term</code>, <code>item_id</code>, <code>content_id</code>, <code>content_type</code> και διατήρηση δεδομένων 14 μηνών. Βήμα-βήμα οδηγός ρύθμισης: <code>MANUAL-GA4-Smart-Finder.md</code> (από τη Brandery). Τα custom dimensions δεν δουλεύουν αναδρομικά: ρυθμίζονται <strong>πριν</strong> ανοίξει το production tag.</div>
+<div class="card"><strong>B. Backend analytics (καρτέλα Analytics)</strong><br>Aggregate στοιχεία ανά ερώτημα: πόσες φορές αναζητήθηκε, πόσες δεν βρήκε αποτέλεσμα, ποια προγράμματα πατήθηκαν. Κρατά έως 2000 διαφορετικά ερωτήματα και δεν έχει ημερομηνίες. Είναι μόνο για προβολή: δεν επηρεάζει το ranking.</div>
+<div class="note warn"><strong>Γνωστό κενό:</strong> τα κλικ στις κάρτες της σελίδας αποτελεσμάτων δεν καταγράφονται σε κανένα από τα δύο επίπεδα (καταγράφεται μόνο η επιλογή από το dropdown).</div>
+<p><strong>Testing:</strong> τα δεδομένα του testing πρέπει να μένουν χωριστά από τα production analytics.</p>
+</section>
+
+<section id="backend">
+<h2>10. Backend — λειτουργία και συντήρηση</h2>
+<p><span class="who it">IT</span></p>
+<h3>Environment variables</h3>
+<table><tr><th>Variable</th><th>Ρόλος</th></tr>
+<tr><td><code>ALLOWED_ORIGINS</code></td><td>CORS whitelist (π.χ. <code>https://elearningekpa.gr,https://www.elearningekpa.gr</code>).</td></tr>
+<tr><td><code>DATA_DIR</code></td><td><strong>Υποχρεωτικό σε production.</strong> Μόνιμος φάκελος εκτός κώδικα, με δικαίωμα εγγραφής.</td></tr>
+<tr><td><code>ADMIN_TOKEN</code></td><td>Κλειδί του admin. Αν λείπει, το admin είναι εντελώς κλειδωμένο.</td></tr>
+<tr><td><code>SEARCH_RATE_LIMIT_PER_MIN</code>, <code>TRACK_RATE_LIMIT_PER_MIN</code></td><td>Default 120/IP/λεπτό.</td></tr>
+<tr><td><code>CHAT_RATE_LIMIT_PER_MIN</code></td><td>Default 20/IP/λεπτό.</td></tr>
+<tr><td><code>ADMIN_RATE_LIMIT_PER_MIN</code>, <code>CATALOG_STATUS_RATE_LIMIT_PER_MIN</code></td><td>Default 10 και 60.</td></tr>
+<tr><td><code>LLM_PROVIDER</code> + provider key</td><td>Μόνο για το <code>/api/chat</code>.</td></tr></table>
+<h3>Αρχεία στο <code>DATA_DIR</code></h3>
+<table><tr><th>Αρχείο</th><th>Περιεχόμενο</th></tr>
+<tr><td><code>concepts.json</code></td><td>Το ζωντανό taxonomy</td></tr>
+<tr><td><code>lexicon.json</code>, <code>lexicon-backups/</code></td><td>Το ζωντανό λεξικό και τα 20 τελευταία backups</td></tr>
+<tr><td><code>programs.json</code>, <code>catalog-meta.json</code>, <code>catalog-backups/</code></td><td>Ο κατάλογος που ισχύει, από πού προήλθε, και τα 20 τελευταία backups</td></tr>
+<tr><td><code>analytics.json</code></td><td>Backend analytics</td></tr></table>
+<div class="note warn"><strong>Μην επεξεργάζεσαι αυτά τα αρχεία με το χέρι</strong> όσο τρέχει η υπηρεσία. Παίρνε backup του <code>DATA_DIR</code> στην πολιτική backup του server.</div>
+<h3>Δίκτυο</h3>
+<p>Το κουμπί «Έλεγχος καταλόγου» κάνει τον <strong>server</strong> να διαβάζει το <code>https://elearningekpa.gr</code>. Ο server χρειάζεται εξερχόμενη πρόσβαση HTTPS σε αυτό το domain.</p>
+<h3>Βασικοί έλεγχοι</h3>
+<pre>curl https://smartfinder.elearningekpa.gr/health
+# {"ok":true,"programs":702,"active_programs":693}
+
+curl -s -G https://smartfinder.elearningekpa.gr/api/search --data-urlencode "q=ψυχολογία" -d format=paged -d page_size=3
+# αντικείμενο με results και pagination, πρώτο: Ιατρική Ψυχολογία (σύνολο 83)
+
+curl -s https://smartfinder.elearningekpa.gr/lexicon.json | head -c 200</pre>
+<p>Τα νούμερα επαληθεύονται με το addendum του πακέτου που εγκαθιστάς. Αν το search επιστρέφει απλό array αντί για αντικείμενο με <code>results</code>, τρέχει παλιός backend: μην δημοσιεύσεις το tag.</p>
+<h3>Αυτοματοποιημένοι έλεγχοι</h3>
+<p>Μέσα στο πακέτο υπάρχουν 174 tests (<code>npm test</code>) που ελέγχουν την αναζήτηση, το API, τον κατάλογο, το λεξικό και το admin.</p>
+</section>
+
+<section id="security">
+<h2>11. Ασφάλεια</h2>
+<ul><li>Το LLM API key δεν εκτίθεται στον browser: το <code>/api/chat</code> λειτουργεί ως server-side proxy.</li>
+<li>Το <code>ADMIN_TOKEN</code> διανέμεται μόνο σε όσους χρειάζονται. Αν λείπει, το admin είναι fail-closed.</li>
+<li>Το CORS επιτρέπει μόνο τα απαιτούμενα origins.</li>
+<li>Τα secrets ανήκουν σε environment variables και όχι σε Git, GTM ή frontend.</li>
+<li>Όλα τα admin endpoints χρειάζονται token και έχουν rate limiting. Το μεγαλύτερο όριο μεγέθους σώματος ισχύει μόνο μετά τον έλεγχο του token.</li>
+<li>Τα πακέτα δεν περιέχουν ποτέ <code>.env</code>, analytics ή runtime δεδομένα. Το script κατασκευής τα αποκλείει.</li></ul>
+</section>
+
+<section id="delivery">
+<h2>12. Εκδόσεις και παράδοση πακέτων</h2>
+<p><span class="who bra">Brandery</span> Κάθε αλλαγή κώδικα παραδίδεται ως <strong>νέο πακέτο με ημερομηνία</strong> (π.χ. <code>ekpa-smart-finder-IT-package-2026-10-02-PRODUCTION.zip</code>). Δεύτερο πακέτο της ίδιας ημέρας παίρνει <code>-v2</code>. Ένα πακέτο που έχει σταλεί δεν αλλάζει ποτέ.</p>
+<h3>Τι περιέχει ένα πακέτο</h3>
+<ul><li>Φάκελος <code>search-ekpa/</code> (backend και δεδομένα εκκίνησης).</li><li>Το production widget του GTM και, προαιρετικά, το block για το <code>&lt;head&gt;</code>.</li><li>Οι οδηγοί και το <strong>addendum της ημερομηνίας</strong> του πακέτου (αυτό υπερισχύει όπου υπάρχει διαφορά με παλιότερα έγγραφα).</li><li>Το <code>RELEASE-MANIFEST</code> με SHA-256 των βασικών αρχείων.</li></ul>
+<h3>Πώς φτιάχνεται</h3>
+<p>Με script, όχι με το χέρι: ο κώδικας βγαίνει από ένα συγκεκριμένο commit του git, τρέχουν όλα τα tests, ξεκινά πραγματικός server από το πακέτο και ελέγχονται το API του widget, το CORS, ο κατάλογος, το λεξικό και το admin. Το πακέτο δεν φτιάχνεται αν κάποιος έλεγχος αποτύχει ή αν λείπει το addendum.</p>
+<h3>Εγκατάσταση (σύνοψη)</h3>
+<ol><li>Backend πρώτα: deploy του <code>search-ekpa/</code>, <code>npm ci</code>, <code>DATA_DIR</code>, <code>ADMIN_TOKEN</code>, restart.</li><li>Επαλήθευση με τις εντολές του addendum. Όλες πρέπει να περνούν.</li><li>Μόνο μετά, δημοσίευση του tag του GTM.</li><li>(Προαιρετικά) πρόσθεση του block στο <code>&lt;head&gt;</code>.</li></ol>
+<p><strong>Rollback:</strong> κράτησε την προηγούμενη εγκατάσταση του backend (ή το commit της) και το προηγούμενο περιεχόμενο του tag. Το block του <code>&lt;head&gt;</code> αφαιρείται με σβήσιμο.</p>
+</section>
+
+<section id="testing">
+<h2>13. Testing → Production</h2>
+<h3>Testing (Brandery)</h3>
+<ol><li>Αλλαγές στο Railway, με το tag <code>SmartFinder - TESTING2</code> και το αρχείο <code>…VALIDATED.txt</code>.</li><li>Έλεγχος desktop/mobile και των 5 selectors, dropdown, σελίδας αποτελεσμάτων, ταξινόμησης, κατηγοριών και σχετικών.</li><li>Έλεγχος του admin (λεξικό, κατάλογος).</li><li>Έλεγχος ότι τα analytics του testing δεν αναμειγνύονται με το production.</li></ol>
+<h3>Πριν από production</h3>
+<ul><li>Ρύθμιση GA4 (custom dimensions, διατήρηση 14 μηνών).</li><li>Έλεγχος CORS production origins και persistent <code>DATA_DIR</code> με backup.</li><li>Έλεγχος health endpoint και logs.</li><li>Επιβεβαίωση του μοντέλου δικαιωμάτων admin.</li><li>Απόφαση για feed καταλόγου από το IT (προαιρετικά, σε επόμενο βήμα).</li></ul>
+</section>
+
+<section id="trouble">
+<h2>14. Troubleshooting</h2>
+<table><tr><th>Σύμπτωμα</th><th>Έλεγχος</th></tr>
+<tr><td>Δεν εμφανίζεται dropdown</td><td>GTM tag fire, σωστό selector, Console και Network του browser.</td></tr>
+<tr><td>Η σελίδα <code>/search</code> δείχνει 0 αποτελέσματα</td><td>Τρέχει παλιός backend (το search δεν επιστρέφει <code>results</code>/<code>pagination</code>). Έλεγχος με την εντολή του addendum.</td></tr>
+<tr><td>Φαίνεται για μια στιγμή η λίστα του site</td><td>Αναμενόμενο χωρίς το block στο <code>&lt;head&gt;</code>. Βάλε το block (κεφάλαιο 2).</td></tr>
+<tr><td><code>/api/search</code> αποτυγχάνει</td><td><code>/health</code>, logs, CORS, rate limit, reverse proxy.</td></tr>
+<tr><td>403 από browser</td><td><code>ALLOWED_ORIGINS</code> και ακριβές hostname.</td></tr>
+<tr><td>Τα «Σχετικά Προγράμματα» εξαφανίζονται μετά από επανάληψη</td><td>Έλεγχος ότι οι απαντήσεις έχουν <code>Vary: Origin</code> (ενδιάμεσος cache/proxy που το αφαιρεί).</td></tr>
+<tr><td>Admin δεν αποθηκεύει</td><td><code>ADMIN_TOKEN</code>, rate limit, δικαιώματα του <code>DATA_DIR</code>. Αν το <code>DATA_DIR</code> λείπει, η «Εφαρμογή» και η αποθήκευση λεξικού είναι απενεργοποιημένες.</td></tr>
+<tr><td>«Εφαρμογή» καταλόγου κλειδωμένη</td><td>Έχει ενεργοποιηθεί δικλείδα (ύποπτο αποτέλεσμα). Διάβασε το μήνυμα, ξαναδοκίμασε αργότερα ή ζήτα βοήθεια από τη Brandery.</td></tr>
+<tr><td>Κάποια σελίδα του site δεν διαβάστηκε (403) στον έλεγχο</td><td>Το site περιορίζει τον ρυθμό. Ξαναδοκίμασε στον επόμενο έλεγχο.</td></tr>
+<tr><td>Το λεξικό δεν φορτώθηκε σωστά</td><td>Η καρτέλα Λεξικό δείχνει το σφάλμα. Η αναζήτηση δουλεύει με το ενσωματωμένο λεξικό. Επαναφορά από backup ή διόρθωση του αρχείου.</td></tr>
+<tr><td>Taxonomy / λεξικό / κατάλογος χάθηκαν μετά από deploy</td><td>Το <code>DATA_DIR</code> δεν είναι μόνιμο.</td></tr>
+<tr><td>AI chat δεν λειτουργεί αλλά η αναζήτηση ναι</td><td><code>LLM_PROVIDER</code>, provider key, logs.</td></tr></table>
+</section>
+
+<section id="checklists">
+<h2>15. Checklists και κύκλος εργασιών</h2>
+<h3>Κύκλος εργασιών (περίπου κάθε 3 μήνες, με τον κύκλο σπουδών)</h3>
+<ol><li><strong>Έλεγχος καταλόγου</strong> (κουμπί), στην αρχή του νέου κύκλου, ώστε να υπάρχουν φρέσκες τιμές και σωστά ενεργά προγράμματα.</li><li><strong>Αναφορά GA4</strong> για τον κύκλο που τελείωσε: αναζητήσεις χωρίς αποτέλεσμα, δημοφιλή θέματα.</li><li><strong>Αλλαγές λεξικού</strong> με βάση την αναφορά (καρτέλα Λεξικό).</li><li><strong>Πακέτο IT</strong> μόνο αν υπάρχει αλλαγή κώδικα.</li></ol>
+<div class="card"><strong>Περιοδικός έλεγχος</strong><br>
+☐ <code>/health</code> OK &nbsp; ☐ αναζήτηση απαντά &nbsp; ☐ υπενθύμιση στην καρτέλα Κατάλογος &nbsp; ☐ αναζητήσεις χωρίς αποτέλεσμα &nbsp; ☐ logs του backend</div>
+<div class="card"><strong>Έλεγχος καταλόγου</strong><br>
+☐ Πάτα «Έλεγχος καταλόγου» &nbsp; ☐ Περίμενε (~25 λεπτά) &nbsp; ☐ Διάβασε τις αλλαγές και τα αποτελέσματα αναζήτησης &nbsp; ☐ Εφαρμογή &nbsp; ☐ Δοκιμή αναζήτησης</div>
+<div class="card"><strong>Αλλαγή λεξικού</strong><br>
+☐ Πρόσθεσε/άλλαξε λέξεις &nbsp; ☐ Δες τις προειδοποιήσεις &nbsp; ☐ Προεπισκόπηση &nbsp; ☐ Αποθήκευση &nbsp; ☐ Δοκιμή αναζήτησης &nbsp; ☐ Καταγραφή αλλαγής</div>
+<div class="card"><strong>GTM αλλαγή</strong><br>
+☐ Workspace isolation &nbsp; ☐ Preview &nbsp; ☐ Trigger &nbsp; ☐ Network 200 &nbsp; ☐ Desktop/mobile &nbsp; ☐ Pending Changes review &nbsp; ☐ Publish μόνο μετά από έγκριση</div>
+</section>
+
+<section id="history">
+<h2>16. Ιστορικό εκδόσεων</h2>
+<table><tr><th>Ημερομηνία</th><th>Τι άλλαξε</th></tr>
+<tr><td>25/09/2026</td><td>Πρώτο εγχειρίδιο: widget v18, backend v4, αναζήτηση με dropdown, admin taxonomy και analytics.</td></tr>
+<tr><td>30/09/2026</td><td>Σελίδα αποτελεσμάτων μέσα στο <code>/search</code> (widget v25), ταξινόμηση, ανεκτικότητα σε ορθογραφικά λάθη, κατηγορίες και κοινό στην αναζήτηση.</td></tr>
+<tr><td>01/10/2026</td><td>Κατάλογος από το site: απόκρυψη προγραμμάτων εκτός εγγραφών, τιμές κύκλου, συμπλήρωση κενών, νέα προγράμματα, καρτέλα «Κατάλογος». Widget v26: όλες οι κατηγορίες ως σωστά links και 8 σχετικά. Widget v27 έως v30: χωρίς αναλαμπή της λίστας του site, χωρίς κενό, μεγαλύτερη εικόνα. Προαιρετικό block για το <code>&lt;head&gt;</code>.</td></tr>
+<tr><td>02/10/2026</td><td>Λεξικό σε αρχείο δεδομένων και καρτέλα «Λεξικό» στο admin (προεπισκόπηση αλλαγών, προειδοποιήσεις, backup και επαναφορά), εξαγωγή δεδομένων. Πακέτο <code>2026-10-02</code>.</td></tr></table>
+</section>
+
+<footer>
+<strong>EKPA Smart Finder — Manual</strong><br>
+Τεκμηρίωση βασισμένη στο παραδοθέν IT package της 02/10/2026. Για αλλαγές σε backend, GTM widget, data schema ή synchronization, το εγχειρίδιο πρέπει να ενημερώνεται μαζί με την αντίστοιχη έκδοση.
+<div class="credit">Created by Papachrisanthou Team</div>
+</footer>
+</main></body></html>
