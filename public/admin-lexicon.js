@@ -8,6 +8,7 @@
   var previewOf = null;      // JSON of the draft the last preview was made for
   var lastPreview = null;
   var programs = [];         // active programs [{slug,title}]
+  var programsFull = [];     // same, with categories - for the live "already a category" check
   var categories = [];       // official category names present in the catalog
   var loaded = false, busy = false;
 
@@ -45,6 +46,8 @@
       if (!st.ok) throw new Error(st.data.error || ("HTTP " + st.status));
       meta = st.data;
       serverLex = st.data.lexicon; baseVersion = st.data.version; draft = clone(serverLex);
+      programsFull = parts[1];
+      if (window.EkpaSearch) { try { window.EkpaSearch.setLexicon(serverLex); } catch (e) {} }
       programs = parts[1].map(function (p) { return { slug: p.slug, title: p.title }; });
       var inCatalog = {};
       parts[1].forEach(function (p) { [p.primary_area].concat(p.areas_of_study || []).forEach(function (c) { if (c) inCatalog[c] = 1; }); });
@@ -131,6 +134,27 @@
     bodyEls.forEach(function (e) { c.appendChild(e); });
     return c;
   }
+  // Live, per-group notes (no need to press Preview to learn about the common problems).
+  function note(text, level) {
+    var d = document.createElement("div"); d.className = "banner " + (level === "err" ? "err" : "warn"); d.style.cssText = "margin:8px 0;font-size:13px";
+    d.textContent = (level === "err" ? "⛔ " : "⚠ ") + text; return d;
+  }
+  function shadowNotes(words) {
+    var out = [];
+    if (!window.EkpaSearch || !programsFull.length) return out;
+    words.forEach(function (w) {
+      var cat = null;
+      try { cat = window.EkpaSearch.resolveCategoryIntent(programsFull, w); } catch (e) {}
+      if (cat) out.push(note("Η λέξη «" + w + "» ταιριάζει ήδη με την κατηγορία «" + cat + "». Η αναζήτηση την αντιμετωπίζει ως κατηγορία πριν φτάσει σε αυτόν τον κανόνα, άρα ο κανόνας δεν θα ισχύσει. Για να δείχνει την κατηγορία, χρησιμοποίησε το «Λέξη → κατηγορία». Για συγκεκριμένα προγράμματα δεν γίνεται με αυτή τη λέξη.", "warn"));
+    });
+    return out;
+  }
+  function groupNotes(g, targetKey, targetName) {
+    var out = [];
+    if (g.words.length && !(g[targetKey] || []).length) out.push(note("Η ομάδα έχει λέξεις αλλά κανένα " + targetName + ". Πρόσθεσε τουλάχιστον ένα, αλλιώς δεν μπορεί να αποθηκευτεί.", "err"));
+    if (!g.words.length && (g[targetKey] || []).length) out.push(note("Η ομάδα δεν έχει λέξεις. Πρόσθεσε τουλάχιστον μία, αλλιώς δεν θα χρησιμοποιηθεί.", "err"));
+    return out.concat(shadowNotes(g.words));
+  }
   function label(text) { var l = document.createElement("div"); l.className = "lex-label"; l.textContent = text; return l; }
   var rerender = function () { previewOf = null; lastPreview = null; render(); };
 
@@ -178,7 +202,7 @@
       p.appendChild(card("Κοινό → κατηγορίες: " + (g.words.slice(0, 3).join(", ") || "(νέα ομάδα)"), null, [
         label("Λέξεις"), chips(g.words, rerender, "π.χ. δάσκαλος, δασκάλου, δασκάλων…"),
         label("Κατηγορίες που εμφανίζονται"), categoryPicker(g.categories, rerender),
-      ], function () { draft.audience_categories.splice(i, 1); rerender(); }));
+      ].concat(groupNotes(g, "categories", "κατηγορία")), function () { draft.audience_categories.splice(i, 1); rerender(); }));
     });
     draft.audience_programs.forEach(function (g, i) {
       var scanOn = Array.isArray(g.scan_terms);
@@ -186,7 +210,7 @@
       var cb = document.createElement("input"); cb.type = "checkbox"; cb.checked = scanOn;
       cb.addEventListener("change", function () { if (cb.checked) g.scan_terms = g.words.slice(); else delete g.scan_terms; rerender(); });
       scan.appendChild(cb); scan.appendChild(document.createTextNode(" Πρόσθεσε και προγράμματα που αναφέρουν το κοινό στο «Απευθύνεται σε…» της περιγραφής τους"));
-      var els = [label("Λέξεις"), chips(g.words, rerender, "π.χ. φιλόλογος, φιλολόγου…"), label("Προγράμματα (εμφανίζονται πρώτα)"), programPicker(g.programs, rerender), scan];
+      var els = [label("Λέξεις"), chips(g.words, rerender, "π.χ. φιλόλογος, φιλολόγου…"), label("Προγράμματα (εμφανίζονται πρώτα)"), programPicker(g.programs, rerender), scan].concat(groupNotes(g, "programs", "πρόγραμμα"));
       if (scanOn) { els.push(label("Λέξεις που αναζητούνται στην περιγραφή")); els.push(chips(g.scan_terms, rerender, "π.χ. φιλόλογοι, φιλολογίας…")); }
       p.appendChild(card("Κοινό → προγράμματα: " + (g.words.slice(0, 3).join(", ") || "(νέα ομάδα)"), null, els, function () { draft.audience_programs.splice(i, 1); rerender(); }));
     });
@@ -206,7 +230,7 @@
       p.appendChild(card("Θέμα: " + (g.words.slice(0, 3).join(", ") || "(νέο θέμα)"), null, [
         label("Λέξεις"), chips(g.words, rerender, "π.χ. σεφ, μαγειρική…"),
         label("Προγράμματα"), programPicker(g.programs, rerender),
-      ], function () { draft.topics.splice(i, 1); rerender(); }));
+      ].concat(groupNotes(g, "programs", "πρόγραμμα")), function () { draft.topics.splice(i, 1); rerender(); }));
     });
     var add = document.createElement("button"); add.type = "button"; add.className = "btn btn-secondary"; add.textContent = "➕ Νέο θέμα";
     add.addEventListener("click", function () { draft.topics.push({ id: newId(), words: [], programs: [] }); render(); });
@@ -250,13 +274,26 @@
     });
     return { html: h, hasErr: hasErr };
   }
+  function problems(d) {
+    var out = [];
+    [["audience_categories", "categories", "Κοινό → κατηγορίες"], ["audience_programs", "programs", "Κοινό → προγράμματα"], ["topics", "programs", "Θέματα"]].forEach(function (x) {
+      d[x[0]].forEach(function (g) {
+        var name = x[2] + " «" + (g.words.slice(0, 2).join(", ") || "χωρίς λέξεις") + "»";
+        if (!g.words.length) out.push(name + ": η ομάδα δεν έχει λέξεις.");
+        else if (!(g[x[1]] || []).length) out.push(name + ": η ομάδα δεν έχει " + (x[1] === "categories" ? "κατηγορίες" : "προγράμματα") + ".");
+      });
+    });
+    return out;
+  }
   function doPreview() {
     if (busy) return;
     var d = cleanDraft();
+    var probs = problems(d);
+    if (probs.length) { say("Διόρθωσε πρώτα: " + probs.join(" "), "err"); var st = $("#lexStatus"); if (st && st.scrollIntoView) st.scrollIntoView({ behavior: "smooth", block: "center" }); return; }
     busy = true; say("Υπολογίζεται η προεπισκόπηση (λίγα δευτερόλεπτα)…", "info");
     $("#lexPreviewBtn").disabled = true;
     api("/api/admin/lexicon/preview", { method: "POST", body: { lexicon: d } }).then(function (r) {
-      if (!r.ok) { say(r.data.error || ("HTTP " + r.status), "err"); return; }
+      if (!r.ok) { say(r.data.error || ("HTTP " + r.status), "err"); var st2 = $("#lexStatus"); if (st2 && st2.scrollIntoView) st2.scrollIntoView({ behavior: "smooth", block: "center" }); return; }
       draft = d; previewOf = draftJson(); lastPreview = r.data; baseVersion = r.data.base_version;
       render(); say("Η προεπισκόπηση είναι έτοιμη. Έλεγξε τις αλλαγές και αποθήκευσε.", "ok");
       var el = $("#lexPreview"); if (el && el.scrollIntoView) el.scrollIntoView({ behavior: "smooth", block: "start" });
