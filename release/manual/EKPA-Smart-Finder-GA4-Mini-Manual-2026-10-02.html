@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="el">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>EKPA Smart Finder — GA4: μίνι εγχειρίδιο</title>
+<style>
+:root{--ink:#172033;--muted:#667085;--line:#e5e7eb;--soft:#f7f8fa;--brand:#183b63;--accent:#1f6f8b;--warn:#9a6700;--ok:#137a55}
+*{box-sizing:border-box} body{margin:0;font:15px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;color:var(--ink);background:#fff}
+.wrap{max-width:900px;margin:auto;padding:34px 26px 56px}
+header{border-bottom:3px solid var(--brand);padding-bottom:18px;margin-bottom:22px}
+.eyebrow{font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--accent);font-weight:700}
+h1{font-size:29px;line-height:1.15;margin:6px 0 8px} h2{font-size:19px;margin:28px 0 8px;color:var(--brand)}
+p{margin:6px 0 10px}.muted{color:var(--muted)}.small{font-size:13px}
+table{width:100%;border-collapse:collapse;margin:10px 0 16px;font-size:14px} th,td{border:1px solid var(--line);padding:7px 10px;vertical-align:top;text-align:left} th{background:var(--soft)}
+code{background:#f2f4f7;padding:1px 5px;border-radius:4px;font-size:13px}
+.note{border-left:4px solid var(--accent);background:#f4f9fb;padding:10px 14px;margin:14px 0}
+.warn{border-left-color:var(--warn);background:#fff9e8}.ok{border-left-color:var(--ok);background:#f1fbf7}
+ul,ol{padding-left:22px} li{margin:3px 0}
+footer{margin-top:40px;padding-top:14px;border-top:1px solid var(--line);color:var(--muted);font-size:12px}
+.credit{margin-top:8px;font-weight:700;color:var(--brand);font-size:13px}
+@media(max-width:700px){.wrap{padding:22px 14px}h1{font-size:25px}table{display:block;overflow-x:auto}}
+@media print{.wrap{max-width:none;padding:16px}table,.note{break-inside:avoid}}
+</style>
+</head>
+<body><main class="wrap">
+<header>
+<div class="eyebrow">E-Learning ΕΚΠΑ · Smart Finder</div>
+<h1>GA4: μίνι εγχειρίδιο</h1>
+<p class="muted">Τι στέλνει το widget, τι πρέπει να ρυθμιστεί, ποιες αναφορές βγαίνουν. Για όσους ξέρουν GA4.</p>
+<p class="small"><strong>Property:</strong> Elearning - GA4 · <code>G-ZL8304SEHG</code> · GTM <code>GTM-TZJNFCW</code> · <strong>Widget:</strong> v30 · <strong>Έκδοση εγγράφου:</strong> 02/10/2026</p>
+</header>
+
+<div class="note warn"><strong>Προτεραιότητα:</strong> ρύθμισε τα custom dimensions και τη διατήρηση <strong>πριν</strong> δημοσιευτεί το production tag. Οι custom dimensions δεν εφαρμόζονται αναδρομικά στις αναφορές, και τα Explorations φτάνουν μόνο όσο η διατήρηση επιτρέπει.</div>
+
+<h2>1. Τι στέλνει το widget</h2>
+<table>
+<tr><th>Event</th><th>Πότε</th><th>Παράμετροι</th></tr>
+<tr><td><code>search</code></td><td>Αναζήτηση ≥ 2 χαρακτήρων. Στέλνεται με debounce 600 ms ή στο submit, και δεν επαναλαμβάνεται για τον ίδιο όρο στη σειρά.</td><td><code>search_term</code></td></tr>
+<tr><td><code>search_no_results</code></td><td>Το dropdown δεν βρήκε προγράμματα. Δεν επαναλαμβάνεται για τον ίδιο όρο στη σειρά. Δεν στέλνεται όταν απέτυχε το δίκτυο.</td><td><code>search_term</code></td></tr>
+<tr><td><code>select_content</code></td><td>Επιλογή προγράμματος από το dropdown (κλικ ή Enter σε επιλεγμένη πρόταση).</td><td><code>search_term</code>, <code>item_id</code> (slug), <code>content_id</code> (τίτλος), <code>content_type</code> = <code>course</code></td></tr>
+</table>
+<ul>
+<li>Αποστολή με <code>gtag('event', …, {send_to: 'G-ZL8304SEHG'})</code>. Αν δεν υπάρχει <code>gtag()</code> στη σελίδα, το widget κάνει <code>dataLayer.push</code> με event <code>ekpa_search</code>, <code>ekpa_search_no_results</code>, <code>ekpa_select_content</code>. Τότε χρειάζεται GA4 Event tag στο GTM που τα προωθεί.</li>
+<li>Δεν στέλνονται personal data. Το <code>search_term</code> είναι το κείμενο που πληκτρολόγησε ο χρήστης.</li>
+</ul>
+<div class="note"><strong>Κενό:</strong> τα κλικ στις κάρτες της σελίδας αποτελεσμάτων (<code>/search?q=…</code>) δεν στέλνουν event. Η μέτρηση της επιλογής προγράμματος καλύπτει μόνο το dropdown.</div>
+
+<h2>2. Ρύθμιση (μία φορά, ~15 λεπτά)</h2>
+<p><strong>Απαιτούμενος ρόλος:</strong> Editor ή Administrator στο property.</p>
+<p><strong>Admin → Data display → Custom definitions → Create custom dimension</strong> (scope <strong>Event</strong>):</p>
+<table>
+<tr><th>Dimension name</th><th>Event parameter</th><th>Περιεχόμενο</th></tr>
+<tr><td><code>SF Search term</code></td><td><code>search_term</code></td><td>Όρος αναζήτησης</td></tr>
+<tr><td><code>SF Program slug</code></td><td><code>item_id</code></td><td>Slug προγράμματος</td></tr>
+<tr><td><code>SF Program title</code></td><td><code>content_id</code></td><td>Τίτλος προγράμματος</td></tr>
+<tr><td><code>SF Content type</code></td><td><code>content_type</code></td><td>Τύπος (course)</td></tr>
+</table>
+<ul>
+<li>Η παράμετρος γράφεται ακριβώς όπως φαίνεται (πεζά, underscore).</li>
+<li>Αν το GA4 αρνηθεί το <code>search_term</code> (δεσμευμένο ή υπάρχει ήδη), χρησιμοποίησε την ενσωματωμένη διάσταση <strong>Search term</strong> και συνέχισε με τις υπόλοιπες. Αν υπάρχει ήδη διάσταση για κάποια παράμετρο με άλλο όνομα, μην φτιάξεις δεύτερη: κράτησε το όνομά της.</li>
+<li><strong>Admin → Data collection and modification → Data retention:</strong> Event data retention = <strong>14 months</strong> (προεπιλογή: 2 μήνες).</li>
+<li>Οι νέες διαστάσεις εμφανίζονται στις αναφορές σε 24–48 ώρες.</li>
+</ul>
+
+<h2>3. Έλεγχος</h2>
+<ol>
+<li><strong>Realtime / DebugView:</strong> κάνε στο site 2–3 αναζητήσεις (μία με σκοπό να μη βρει αποτέλεσμα, π.χ. <code>xyzxyz</code>) και ένα κλικ σε πρόταση. Πρέπει να δεις <code>search</code>, <code>search_no_results</code>, <code>select_content</code> με <code>search_term</code>.</li>
+<li>Αν βλέπεις <code>ekpa_search</code> αντί για <code>search</code>, δες την παράγραφο για το <code>dataLayer</code> παραπάνω.</li>
+<li><strong>Μετά από 24–48 ώρες:</strong> Explore → Blank, διάσταση <code>SF Search term</code>, μέτρηση <code>Event count</code>, φίλτρο <code>Event name</code> = <code>search_no_results</code>. Πρέπει να εμφανιστεί λίστα όρων.</li>
+</ol>
+<p><strong>Testing και production:</strong> το testing (Railway) στέλνει στο ίδιο property. Για διακριτά δεδομένα φιλτράρισε με <code>Hostname</code> ή <code>Page location</code>, ή χρησιμοποίησε Data filter «Developer/Test traffic» και Internal traffic rules για τα δικά σας IP.</p>
+
+<h2>4. Αναφορές που χρειάζονται</h2>
+<table>
+<tr><th>Αναφορά</th><th>Πώς</th><th>Χρήση</th></tr>
+<tr><td><strong>Smart Finder – Zero results</strong></td><td>Exploration (Free form): γραμμές <code>SF Search term</code>, τιμές <code>Event count</code>, φίλτρο <code>Event name = search_no_results</code></td><td>Λέξεις που δεν βρίσκουν τίποτα: υποψήφιες για το <strong>λεξικό</strong></td></tr>
+<tr><td><strong>Top αναζητήσεις</strong></td><td>Ίδιο, με φίλτρο <code>Event name = search</code></td><td>Τι ζητούν περισσότερο οι επισκέπτες</td></tr>
+<tr><td><strong>Όρος → πρόγραμμα</strong></td><td>Γραμμές <code>SF Search term</code> και <code>SF Program title</code>, φίλτρο <code>Event name = select_content</code></td><td>Ποια προγράμματα επιλέγονται για κάθε όρο: ελέγχει αν η κατάταξη είναι σωστή</td></tr>
+<tr><td><strong>Αναζητήσεις χωρίς κλικ</strong></td><td>Σύγκριση των counts <code>search</code> και <code>select_content</code> ανά όρο</td><td>Όροι με αποτελέσματα που κανείς δεν επιλέγει</td></tr>
+</table>
+<div class="note ok"><strong>Προαιρετικά:</strong> μετατροπή του κουμπιού «Κάνε Αίτηση» (links προς <code>/apply/…</code>) σε <strong>key event</strong> στο GA4. Έτσι μπορεί να μετρηθεί ποιες αναζητήσεις καταλήγουν σε αίτηση. Δεν το στέλνει το widget: θέλει δικό του event/trigger στο GTM του site.</div>
+
+<h2>5. Παράδοση δεδομένων στη Brandery</h2>
+<ul>
+<li>Μετά από κάθε κύκλο σπουδών (~3 μήνες): export <strong>CSV</strong> από τα Explorations (Zero results, Top αναζητήσεις, Όρος → πρόγραμμα), με εύρος ημερομηνιών τον κύκλο.</li>
+<li>Με βάση αυτά η Brandery προτείνει λέξεις για το λεξικό, και το ΕΚΠΑ αποφασίζει μέσα από την καρτέλα «📖 Λεξικό» του admin.</li>
+<li>Συμπληρωματικά, το admin του Smart Finder έχει δική του καρτέλα Analytics (στατιστικά από τον server, χωρίς ημερομηνίες, έως 2000 ερωτήματα). Το GA4 παραμένει η κύρια πηγή.</li>
+</ul>
+
+<h2>6. Checklist</h2>
+<p>☐ Τα 3 events φαίνονται στο Realtime/DebugView με <code>search_term</code> &nbsp; ☐ 4 custom dimensions δηλωμένες &nbsp; ☐ Data retention = 14 months &nbsp; ☐ Exploration «Zero results» δείχνει όρους (μετά από 48 ώρες) &nbsp; ☐ Testing διακριτό από production &nbsp; ☐ Ημερομηνία ολοκλήρωσης: ____________</p>
+
+<footer>
+<strong>EKPA Smart Finder — GA4 μίνι εγχειρίδιο</strong><br>
+Βασίζεται στο widget v30 (02/10/2026). Ενημερώνεται όταν αλλάζουν τα events ή οι παράμετροι του widget.
+<div class="credit">Created by Papachrisanthou Team</div>
+</footer>
+</main></body></html>
