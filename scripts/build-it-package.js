@@ -271,7 +271,7 @@ async function main() {
     step(`Έλεγχος περιεχομένου: ${files.length} αρχεία, κανένα απαγορευμένο`);
 
     // 7. Manifest.
-    const keyFiles = ["server/server.js", "server/search-api-contract.js", "server/catalog-sync.js", "server/catalog-store.js", "server/program-enrich.js", "server/ranking-diff.js", "public/search-engine.js", "public/concepts.json", "public/programs.json", "public/index.html"]
+    const keyFiles = ["server/server.js", "server/search-api-contract.js", "server/catalog-sync.js", "server/catalog-store.js", "server/program-enrich.js", "server/ranking-diff.js", "server/lexicon-store.js", "server/lexicon-preview.js", "public/lexicon.json", "public/admin-lexicon.js", "public/search-engine.js", "public/concepts.json", "public/programs.json", "public/index.html"]
       .filter((f) => fs.existsSync(path.join(backend, f)));
     const manifest = [
       `EKPA SMART FINDER — PRODUCTION HANDOFF — ${label}`,
