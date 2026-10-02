@@ -39,7 +39,7 @@ footer{margin-top:50px;padding-top:18px;border-top:1px solid var(--line);color:v
 <p class="small"><strong>Ποιος κάνει τι:</strong>
 <span class="who ekpa">ΕΚΠΑ</span> δεδομένα (κατάλογος, taxonomy, λεξικό) ·
 <span class="who it">IT</span> εγκατάσταση, server, GTM, site ·
-<span class="who bra">Brandery</span> κώδικας και πακέτα</p>
+<span class="who bra">Antonis Papachrisanthou</span> κώδικας και πακέτα</p>
 </header>
 
 <div class="note"><strong>Σκοπός.</strong> Το εγχειρίδιο περιγράφει την τρέχουσα έκδοση του Smart Finder: τι βλέπει ο επισκέπτης, τι διαχειρίζεται το ΕΚΠΑ από τη σελίδα admin, τι απαιτεί πρόσβαση στον server ή στο GTM και πώς παραδίδονται οι νέες εκδόσεις. Αντικαθιστά το εγχειρίδιο της 25/09/2026 (widget v18, backend v4).</div>
@@ -68,9 +68,9 @@ footer{margin-top:50px;padding-top:18px;border-top:1px solid var(--line);color:v
 <tr><td><code>lexicon.json</code></td><td>Λεξικό: λέξεις που αγνοούνται, λέξη→κατηγορία, κοινό/επάγγελμα, θέματα.</td></tr>
 <tr><td><code>analytics.json</code></td><td>Aggregate στατιστικά αναζητήσεων και clicks του backend.</td></tr></table>
 <h3>Δύο περιβάλλοντα</h3>
-<table><tr><th></th><th>Production (server του IT)</th><th>Railway (testing, Brandery)</th></tr>
+<table><tr><th></th><th>Production (server του IT)</th><th>Railway (testing, Antonis Papachrisanthou)</th></tr>
 <tr><td>URL</td><td><code>https://smartfinder.elearningekpa.gr</code></td><td><code>https://nodejs-production-5371.up.railway.app</code></td></tr>
-<tr><td>Ποιος το αλλάζει</td><td>Το IT εγκαθιστά πακέτα. Το ΕΚΠΑ αλλάζει δεδομένα από το admin.</td><td>Μόνο η Brandery.</td></tr>
+<tr><td>Ποιος το αλλάζει</td><td>Το IT εγκαθιστά πακέτα. Το ΕΚΠΑ αλλάζει δεδομένα από το admin.</td><td>Μόνο ο Antonis Papachrisanthou.</td></tr>
 <tr><td>GTM tag</td><td>Ξεχωριστό production tag (αρχείο <code>…PRODUCTION.txt</code>)</td><td><code>SmartFinder - TESTING2</code> (δεν το αγγίζει κανείς άλλος)</td></tr></table>
 </section>
 
@@ -208,7 +208,7 @@ footer{margin-top:50px;padding-top:18px;border-top:1px solid var(--line);color:v
 <section id="analytics">
 <h2>9. Analytics και παρακολούθηση</h2>
 <p>Υπάρχουν δύο επίπεδα, που συμπληρώνουν το ένα το άλλο.</p>
-<div class="card"><strong>A. GA4 (πηγή δεδομένων χρήσης)</strong><br>Events από τον browser: <code>search</code> (όρος αναζήτησης), <code>select_content</code> (επιλογή προγράμματος από το dropdown) και <code>search_no_results</code>. Δίνει <strong>χρονική διάσταση</strong> (ανά κύκλο) και τι κάνει ο επισκέπτης στο site. Απαιτεί ρύθμιση: custom dimensions <code>search_term</code>, <code>item_id</code>, <code>content_id</code>, <code>content_type</code> και διατήρηση δεδομένων 14 μηνών. Βήμα-βήμα οδηγός ρύθμισης: <code>MANUAL-GA4-Smart-Finder.md</code> (από τη Brandery). Τα custom dimensions δεν δουλεύουν αναδρομικά: ρυθμίζονται <strong>πριν</strong> ανοίξει το production tag.</div>
+<div class="card"><strong>A. GA4 (πηγή δεδομένων χρήσης)</strong><br>Events από τον browser: <code>search</code> (όρος αναζήτησης), <code>select_content</code> (επιλογή προγράμματος από το dropdown) και <code>search_no_results</code>. Δίνει <strong>χρονική διάσταση</strong> (ανά κύκλο) και τι κάνει ο επισκέπτης στο site. Απαιτεί ρύθμιση: custom dimensions <code>search_term</code>, <code>item_id</code>, <code>content_id</code>, <code>content_type</code> και διατήρηση δεδομένων 14 μηνών. Βήμα-βήμα οδηγός ρύθμισης: <code>MANUAL-GA4-Smart-Finder.md</code> (από τον Antonis Papachrisanthou). Τα custom dimensions δεν δουλεύουν αναδρομικά: ρυθμίζονται <strong>πριν</strong> ανοίξει το production tag.</div>
 <div class="card"><strong>B. Backend analytics (καρτέλα Analytics)</strong><br>Aggregate στοιχεία ανά ερώτημα: πόσες φορές αναζητήθηκε, πόσες δεν βρήκε αποτέλεσμα, ποια προγράμματα πατήθηκαν. Κρατά έως 2000 διαφορετικά ερωτήματα και δεν έχει ημερομηνίες. Είναι μόνο για προβολή: δεν επηρεάζει το ranking.</div>
 <div class="note warn"><strong>Γνωστό κενό:</strong> τα κλικ στις κάρτες της σελίδας αποτελεσμάτων δεν καταγράφονται σε κανένα από τα δύο επίπεδα (καταγράφεται μόνο η επιλογή από το dropdown).</div>
 <p><strong>Testing:</strong> τα δεδομένα του testing πρέπει να μένουν χωριστά από τα production analytics.</p>
@@ -260,7 +260,7 @@ curl -s https://smartfinder.elearningekpa.gr/lexicon.json | head -c 200</pre>
 
 <section id="delivery">
 <h2>12. Εκδόσεις και παράδοση πακέτων</h2>
-<p><span class="who bra">Brandery</span> Κάθε αλλαγή κώδικα παραδίδεται ως <strong>νέο πακέτο με ημερομηνία</strong> (π.χ. <code>ekpa-smart-finder-IT-package-2026-10-02-PRODUCTION.zip</code>). Δεύτερο πακέτο της ίδιας ημέρας παίρνει <code>-v2</code>. Ένα πακέτο που έχει σταλεί δεν αλλάζει ποτέ.</p>
+<p><span class="who bra">Antonis Papachrisanthou</span> Κάθε αλλαγή κώδικα παραδίδεται ως <strong>νέο πακέτο με ημερομηνία</strong> (π.χ. <code>ekpa-smart-finder-IT-package-2026-10-02-PRODUCTION.zip</code>). Δεύτερο πακέτο της ίδιας ημέρας παίρνει <code>-v2</code>. Ένα πακέτο που έχει σταλεί δεν αλλάζει ποτέ.</p>
 <h3>Τι περιέχει ένα πακέτο</h3>
 <ul><li>Φάκελος <code>search-ekpa/</code> (backend και δεδομένα εκκίνησης).</li><li>Το production widget του GTM και, προαιρετικά, το block για το <code>&lt;head&gt;</code>.</li><li>Οι οδηγοί και το <strong>addendum της ημερομηνίας</strong> του πακέτου (αυτό υπερισχύει όπου υπάρχει διαφορά με παλιότερα έγγραφα).</li><li>Το <code>RELEASE-MANIFEST</code> με SHA-256 των βασικών αρχείων.</li></ul>
 <h3>Πώς φτιάχνεται</h3>
@@ -272,7 +272,7 @@ curl -s https://smartfinder.elearningekpa.gr/lexicon.json | head -c 200</pre>
 
 <section id="testing">
 <h2>13. Testing → Production</h2>
-<h3>Testing (Brandery)</h3>
+<h3>Testing (Antonis Papachrisanthou)</h3>
 <ol><li>Αλλαγές στο Railway, με το tag <code>SmartFinder - TESTING2</code> και το αρχείο <code>…VALIDATED.txt</code>.</li><li>Έλεγχος desktop/mobile και των 5 selectors, dropdown, σελίδας αποτελεσμάτων, ταξινόμησης, κατηγοριών και σχετικών.</li><li>Έλεγχος του admin (λεξικό, κατάλογος).</li><li>Έλεγχος ότι τα analytics του testing δεν αναμειγνύονται με το production.</li></ol>
 <h3>Πριν από production</h3>
 <ul><li>Ρύθμιση GA4 (custom dimensions, διατήρηση 14 μηνών).</li><li>Έλεγχος CORS production origins και persistent <code>DATA_DIR</code> με backup.</li><li>Έλεγχος health endpoint και logs.</li><li>Επιβεβαίωση του μοντέλου δικαιωμάτων admin.</li><li>Απόφαση για feed καταλόγου από το IT (προαιρετικά, σε επόμενο βήμα).</li></ul>
@@ -288,7 +288,7 @@ curl -s https://smartfinder.elearningekpa.gr/lexicon.json | head -c 200</pre>
 <tr><td>403 από browser</td><td><code>ALLOWED_ORIGINS</code> και ακριβές hostname.</td></tr>
 <tr><td>Τα «Σχετικά Προγράμματα» εξαφανίζονται μετά από επανάληψη</td><td>Έλεγχος ότι οι απαντήσεις έχουν <code>Vary: Origin</code> (ενδιάμεσος cache/proxy που το αφαιρεί).</td></tr>
 <tr><td>Admin δεν αποθηκεύει</td><td><code>ADMIN_TOKEN</code>, rate limit, δικαιώματα του <code>DATA_DIR</code>. Αν το <code>DATA_DIR</code> λείπει, η «Εφαρμογή» και η αποθήκευση λεξικού είναι απενεργοποιημένες.</td></tr>
-<tr><td>«Εφαρμογή» καταλόγου κλειδωμένη</td><td>Έχει ενεργοποιηθεί δικλείδα (ύποπτο αποτέλεσμα). Διάβασε το μήνυμα, ξαναδοκίμασε αργότερα ή ζήτα βοήθεια από τη Brandery.</td></tr>
+<tr><td>«Εφαρμογή» καταλόγου κλειδωμένη</td><td>Έχει ενεργοποιηθεί δικλείδα (ύποπτο αποτέλεσμα). Διάβασε το μήνυμα, ξαναδοκίμασε αργότερα ή ζήτα βοήθεια από τον Antonis Papachrisanthou.</td></tr>
 <tr><td>Κάποια σελίδα του site δεν διαβάστηκε (403) στον έλεγχο</td><td>Το site περιορίζει τον ρυθμό. Ξαναδοκίμασε στον επόμενο έλεγχο.</td></tr>
 <tr><td>Το λεξικό δεν φορτώθηκε σωστά</td><td>Η καρτέλα Λεξικό δείχνει το σφάλμα. Η αναζήτηση δουλεύει με το ενσωματωμένο λεξικό. Επαναφορά από backup ή διόρθωση του αρχείου.</td></tr>
 <tr><td>Taxonomy / λεξικό / κατάλογος χάθηκαν μετά από deploy</td><td>Το <code>DATA_DIR</code> δεν είναι μόνιμο.</td></tr>
