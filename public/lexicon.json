@@ -173,5 +173,11 @@
         "epaggelmatikh-mageirikh-ellhnikh-kouzina"
       ]
     }
+  ],
+  "query_aliases": [
+    {
+      "alias": "λεγαλ",
+      "canonical": "legal"
+    }
   ]
 }

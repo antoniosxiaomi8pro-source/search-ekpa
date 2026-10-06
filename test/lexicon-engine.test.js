@@ -144,3 +144,16 @@ test("a program named by the lexicon that no longer exists is ignored, never an 
   assert.equal(Engine.rank(PROGRAMS, CONCEPTS, "σεφ").length, 2);
   Engine.resetLexicon();
 });
+
+test("curated query alias: λεγαλ has exact ranking parity with legal", () => {
+  Engine.resetLexicon();
+  Engine.setLexicon(SEED);
+
+  const canonical = fullRanking("legal");
+  const alias = fullRanking("λεγαλ");
+
+  assert.ok(canonical.length > 0, "canonical query should return results");
+  assert.deepEqual(alias, canonical, "alias must have identical slugs, order and scores");
+
+  Engine.resetLexicon();
+});

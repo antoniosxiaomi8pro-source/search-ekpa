@@ -130,6 +130,11 @@
     return transliterateGreeklish(marked).replace(//g, "αυ").replace(//g, "ευ");
   }
 
+  // Explicit, curated whole-query aliases loaded from lexicon.json.
+  // These are deliberately NOT generated automatically from concept terms:
+  // every alias must be explicitly validated before it becomes searchable.
+  const QUERY_ALIASES = {};
+
   // A query is checked in both its normal form AND (if it looks like Latin-script Greek)
   // a transliterated-to-Greek form. Both variants get folded, so "psixologia" and
   // "ψυχολογία" converge to the same canonical string ("ψιχολογια").
@@ -137,6 +142,29 @@
     const variants = new Set();
     const base = foldGreek(normalize(q));
     if (base) variants.add(base);
+
+    // Exact curated alias equivalence, e.g. "λεγαλ" -> "legal".
+    // Add the canonical spelling as another raw variant so filtering, intent
+    // resolution and scoring all see the same semantic query.
+    const aliasTarget = QUERY_ALIASES[base];
+    if (aliasTarget) {
+      const aliasBase = foldGreek(normalize(aliasTarget));
+      if (aliasBase) variants.add(aliasBase);
+
+      const aliasLower = String(aliasTarget).toLowerCase();
+      if (
+        isLikelyGreeklish(aliasLower) &&
+        aliasBase.replace(/\s+/g, "").length >= MIN_GREEKLISH_LETTERS
+      ) {
+        const aliasTranslit = foldGreek(normalize(transliterateGreeklish(aliasLower)));
+        if (aliasTranslit) variants.add(aliasTranslit);
+
+        if (/a[fv]|e[fv]/.test(aliasLower)) {
+          const aliasTranslit2 = foldGreek(normalize(transliterateGreeklishAuEu(aliasLower)));
+          if (aliasTranslit2) variants.add(aliasTranslit2);
+        }
+      }
+    }
 
     // Controlled acronym equivalence at the query-normalization layer. This is
     // not a score boost: it simply gives English ADHD and Greek ΔΕΠΥ the same
@@ -977,6 +1005,7 @@
       audienceAliases: cloneJson(AUDIENCE_PROGRAM_ALIASES),
       topicSets: cloneJson(TOPIC_SETS),
       topicAliases: cloneJson(TOPIC_ALIASES),
+      queryAliases: cloneJson(QUERY_ALIASES),
       scan,
     };
   }
@@ -991,6 +1020,7 @@
     replaceContents(AUDIENCE_PROGRAM_ALIASES, t.audienceAliases);
     replaceContents(TOPIC_SETS, t.topicSets);
     replaceContents(TOPIC_ALIASES, t.topicAliases);
+    replaceContents(QUERY_ALIASES, t.queryAliases);
     Object.keys(AUDIENCE_SCAN_REGEX).forEach((k) => delete AUDIENCE_SCAN_REGEX[k]);
     Object.keys(t.scan).forEach((id) => { const re = buildScanRegex(t.scan[id]); if (re) AUDIENCE_SCAN_REGEX[id] = re; });
     indexCache = new WeakMap();
@@ -1021,7 +1051,7 @@
     };
     const id = (g, where) => { if (!g || typeof g.id !== "string" || !/^[a-z0-9_-]{1,40}$/.test(g.id)) fail("άκυρο id στο " + where + "."); return g.id; };
 
-    const t = { stopwords: new Set(), category: {}, audienceMulti: {}, audienceSets: {}, audienceAliases: {}, topicSets: {}, topicAliases: {}, scan: {} };
+    const t = { stopwords: new Set(), category: {}, audienceMulti: {}, audienceSets: {}, audienceAliases: {}, topicSets: {}, topicAliases: {}, queryAliases: {}, scan: {} };
     const owner = {}; // folded word -> which table owns it
     const claim = (f, table, original) => {
       if (owner[f] && owner[f] !== table) fail("η λέξη «" + original + "» υπάρχει και στο «" + owner[f] + "» και στο «" + table + "».");
@@ -1067,6 +1097,24 @@
         t.topicAliases[f] = gid; claim(f, "θέματα", w);
       });
     });
+
+    const queryAliases = lex.query_aliases === undefined ? [] : lex.query_aliases;
+    if (!Array.isArray(queryAliases)) fail("το query_aliases δεν είναι λίστα.");
+    queryAliases.forEach((e) => {
+      if (!e || typeof e !== "object" || Array.isArray(e)) fail("άκυρη εγγραφή στο query_aliases.");
+      const alias = word(e.alias, "query_aliases.alias");
+      if (typeof e.canonical !== "string" || !e.canonical.trim() || e.canonical.length > 100) {
+        fail("άκυρο canonical στο query_aliases.");
+      }
+      const canonical = foldWord(e.canonical);
+      if (!canonical) fail("άκυρο canonical για το alias «" + e.alias + "».");
+      if (alias === canonical) fail("το alias «" + e.alias + "» είναι ίδιο με το canonical.");
+      if (t.queryAliases[alias] && t.queryAliases[alias] !== e.canonical.trim()) {
+        fail("το alias «" + e.alias + "» έχει δύο διαφορετικά canonical queries.");
+      }
+      t.queryAliases[alias] = e.canonical.trim();
+      claim(alias, "query_aliases", e.alias);
+    });
     // A word that is both a stopword and an alias could never act as an alias (stopwords are dropped first).
     Object.keys(owner).forEach((f) => {
       if (owner[f] !== "stopwords" && t.stopwords.has(f)) fail("η λέξη «" + f + "» είναι και stopword και λέξη αντιστοίχισης.");
@@ -1083,6 +1131,7 @@
       category_words: Object.keys(t.category).length,
       audience_words: Object.keys(t.audienceMulti).length + Object.keys(t.audienceAliases).length,
       topic_words: Object.keys(t.topicAliases).length,
+      query_aliases: Object.keys(t.queryAliases).length,
     };
   }
   function resetLexicon() { applyTables(DEFAULT_TABLES); }
