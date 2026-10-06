@@ -1,0 +1,327 @@
+{
+  "schema_version": 1,
+  "created_from_commit": "40ef7a5",
+  "purpose": "Fail-closed protected baseline for validated Smart Finder behavior",
+  "protected_queries": {
+    "legal": {
+      "total": 43,
+      "top10": [
+        {
+          "slug": "paralegal-ekseidikeumeno-prosopiko-sto-xoro-paroxis-nomikon-ypiresion",
+          "score": 349
+        },
+        {
+          "slug": "ergatiko-dikaio",
+          "score": 249
+        },
+        {
+          "slug": "athlhtiko-dikaio",
+          "score": 249
+        },
+        {
+          "slug": "nomika-agglika",
+          "score": 249
+        },
+        {
+          "slug": "forologiko-dikaio-kai-praktiki-efarmogi",
+          "score": 249
+        },
+        {
+          "slug": "farmakeutiko-dikaio-kai-praktikes-efarmoges",
+          "score": 249
+        },
+        {
+          "slug": "nautiliako-dikaio-stin-praksi",
+          "score": 249
+        },
+        {
+          "slug": "dikaio-prostasias-politistikis-klironomias",
+          "score": 249
+        },
+        {
+          "slug": "boithos-sumbolaiografou-nomika-themata-kai-praktiki-efarmogi",
+          "score": 249
+        },
+        {
+          "slug": "dikaio-energeias-kai-periballontos-nomikes-prokliseis-kai-prooptikes-biosimotitas",
+          "score": 249
+        }
+      ]
+    },
+    "λεγαλ": {
+      "total": 43,
+      "top10": [
+        {
+          "slug": "paralegal-ekseidikeumeno-prosopiko-sto-xoro-paroxis-nomikon-ypiresion",
+          "score": 349
+        },
+        {
+          "slug": "ergatiko-dikaio",
+          "score": 249
+        },
+        {
+          "slug": "athlhtiko-dikaio",
+          "score": 249
+        },
+        {
+          "slug": "nomika-agglika",
+          "score": 249
+        },
+        {
+          "slug": "forologiko-dikaio-kai-praktiki-efarmogi",
+          "score": 249
+        },
+        {
+          "slug": "farmakeutiko-dikaio-kai-praktikes-efarmoges",
+          "score": 249
+        },
+        {
+          "slug": "nautiliako-dikaio-stin-praksi",
+          "score": 249
+        },
+        {
+          "slug": "dikaio-prostasias-politistikis-klironomias",
+          "score": 249
+        },
+        {
+          "slug": "boithos-sumbolaiografou-nomika-themata-kai-praktiki-efarmogi",
+          "score": 249
+        },
+        {
+          "slug": "dikaio-energeias-kai-periballontos-nomikes-prokliseis-kai-prooptikes-biosimotitas",
+          "score": 249
+        }
+      ]
+    },
+    "law": {
+      "total": 43,
+      "top10": [
+        {
+          "slug": "law-and-economics",
+          "score": 344
+        },
+        {
+          "slug": "ergatiko-dikaio",
+          "score": 249
+        },
+        {
+          "slug": "athlhtiko-dikaio",
+          "score": 249
+        },
+        {
+          "slug": "nomika-agglika",
+          "score": 249
+        },
+        {
+          "slug": "forologiko-dikaio-kai-praktiki-efarmogi",
+          "score": 249
+        },
+        {
+          "slug": "paralegal-ekseidikeumeno-prosopiko-sto-xoro-paroxis-nomikon-ypiresion",
+          "score": 249
+        },
+        {
+          "slug": "farmakeutiko-dikaio-kai-praktikes-efarmoges",
+          "score": 249
+        },
+        {
+          "slug": "nautiliako-dikaio-stin-praksi",
+          "score": 249
+        },
+        {
+          "slug": "dikaio-prostasias-politistikis-klironomias",
+          "score": 249
+        },
+        {
+          "slug": "boithos-sumbolaiografou-nomika-themata-kai-praktiki-efarmogi",
+          "score": 249
+        }
+      ]
+    },
+    "νομικά": {
+      "total": 32,
+      "top10": [
+        {
+          "slug": "nomika-agglika",
+          "score": 412
+        },
+        {
+          "slug": "boithos-sumbolaiografou-nomika-themata-kai-praktiki-efarmogi",
+          "score": 412
+        },
+        {
+          "slug": "eidika-nomika-themata-gia-sumboulous-epixeiriseon",
+          "score": 380
+        },
+        {
+          "slug": "paralegal-ekseidikeumeno-prosopiko-sto-xoro-paroxis-nomikon-ypiresion",
+          "score": 333
+        },
+        {
+          "slug": "nautiliako-dikaio-stin-praksi",
+          "score": 315
+        },
+        {
+          "slug": "dikaio-energeias-kai-periballontos-nomikes-prokliseis-kai-prooptikes-biosimotitas",
+          "score": 315
+        },
+        {
+          "slug": "ergatiko-dikaio",
+          "score": 312
+        },
+        {
+          "slug": "athlhtiko-dikaio",
+          "score": 312
+        },
+        {
+          "slug": "forologiko-dikaio-kai-praktiki-efarmogi",
+          "score": 312
+        },
+        {
+          "slug": "farmakeutiko-dikaio-kai-praktikes-efarmoges",
+          "score": 312
+        }
+      ]
+    },
+    "νομικό": {
+      "total": 31,
+      "top10": [
+        {
+          "slug": "paralegal-ekseidikeumeno-prosopiko-sto-xoro-paroxis-nomikon-ypiresion",
+          "score": 388
+        },
+        {
+          "slug": "nomiko-plaisio-gia-tis-ananeosimes-piges-energeias-praktikes-efarmoges",
+          "score": 367
+        },
+        {
+          "slug": "nautiliako-dikaio-stin-praksi",
+          "score": 270
+        },
+        {
+          "slug": "dikaio-energeias-kai-periballontos-nomikes-prokliseis-kai-prooptikes-biosimotitas",
+          "score": 270
+        },
+        {
+          "slug": "ergatiko-dikaio",
+          "score": 267
+        },
+        {
+          "slug": "athlhtiko-dikaio",
+          "score": 267
+        },
+        {
+          "slug": "nomika-agglika",
+          "score": 267
+        },
+        {
+          "slug": "forologiko-dikaio-kai-praktiki-efarmogi",
+          "score": 267
+        },
+        {
+          "slug": "farmakeutiko-dikaio-kai-praktikes-efarmoges",
+          "score": 267
+        },
+        {
+          "slug": "dikaio-prostasias-politistikis-klironomias",
+          "score": 267
+        }
+      ]
+    },
+    "νομικός": {
+      "total": 31,
+      "top10": [
+        {
+          "slug": "paralegal-ekseidikeumeno-prosopiko-sto-xoro-paroxis-nomikon-ypiresion",
+          "score": 172
+        },
+        {
+          "slug": "dikaio-energeias-kai-periballontos-nomikes-prokliseis-kai-prooptikes-biosimotitas",
+          "score": 172
+        },
+        {
+          "slug": "dimosia-dioikisi",
+          "score": 169
+        },
+        {
+          "slug": "sumbaseis-akiniton",
+          "score": 166
+        },
+        {
+          "slug": "nomika-agglika",
+          "score": 154
+        },
+        {
+          "slug": "nautiliako-dikaio-stin-praksi",
+          "score": 154
+        },
+        {
+          "slug": "nomiko-plaisio-gia-tis-ananeosimes-piges-energeias-praktikes-efarmoges",
+          "score": 154
+        },
+        {
+          "slug": "paragogiki-texniti-noimosuni-kai-nomiki-praktiki",
+          "score": 154
+        },
+        {
+          "slug": "eidika-nomika-themata-gia-sumboulous-epixeiriseon",
+          "score": 154
+        },
+        {
+          "slug": "law-and-economics",
+          "score": 151
+        }
+      ]
+    },
+    "δίκαιο": {
+      "total": 55,
+      "top10": [
+        {
+          "slug": "ergatiko-dikaio",
+          "score": 349
+        },
+        {
+          "slug": "athlhtiko-dikaio",
+          "score": 349
+        },
+        {
+          "slug": "forologiko-dikaio-kai-praktiki-efarmogi",
+          "score": 349
+        },
+        {
+          "slug": "farmakeutiko-dikaio-kai-praktikes-efarmoges",
+          "score": 349
+        },
+        {
+          "slug": "nautiliako-dikaio-stin-praksi",
+          "score": 349
+        },
+        {
+          "slug": "dikaio-prostasias-politistikis-klironomias",
+          "score": 349
+        },
+        {
+          "slug": "dikaio-energeias-kai-periballontos-nomikes-prokliseis-kai-prooptikes-biosimotitas",
+          "score": 349
+        },
+        {
+          "slug": "to-dikaio-tis-astikis-kai-poinikis-euthunis-stin-ygeia",
+          "score": 344
+        },
+        {
+          "slug": "nomika-agglika",
+          "score": 249
+        },
+        {
+          "slug": "paralegal-ekseidikeumeno-prosopiko-sto-xoro-paroxis-nomikon-ypiresion",
+          "score": 249
+        }
+      ]
+    }
+  },
+  "protected_file_hashes": {
+    "public/search-engine.js": "e981f4356adae31ce62305423a7d5f6bf8d860bfb120f4c9a8c8c64371410ac5",
+    "release/gtm/ekpa-search-widget-gtm-v30-VALIDATED.txt": "42397e472759de5e37e0151994d1f83ef95fafbd4a3636237c846184fd7aa81a",
+    "release/gtm/ekpa-search-widget-gtm-v30-PRODUCTION.txt": "cbdb1d365360f6c84a305f938aa361e2031c7302f1ff65894a117ebf30b9e0a8"
+  }
+}

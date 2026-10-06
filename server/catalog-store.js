@@ -14,6 +14,7 @@
 
 const fs = require("node:fs");
 const path = require("node:path");
+const { overlayGovernedConcepts } = require("./concept-governance-overlay.js");
 
 const MAX_BACKUPS = 20;
 
@@ -90,8 +91,19 @@ class CatalogStore {
       return this.programs;
     }
     // New package with a newer catalog (or nothing stored yet): it becomes the live one.
+    // Preserve explicit governed concept decisions from the persistent catalog.
+    const nextCatalog = stored
+      ? overlayGovernedConcepts(seed, stored)
+      : seed;
+
     if (stored) this.backup(stored, "replaced-by-package");
-    this.write(seed, { source: "package", checked_at: seedAt, applied_at: new Date().toISOString(), seed_checked_at: seedAt });
+
+    this.write(nextCatalog, {
+      source: "package",
+      checked_at: seedAt,
+      applied_at: new Date().toISOString(),
+      seed_checked_at: seedAt
+    });
     this.log(`Κατάλογος: πακέτο ${seedAt || "(χωρίς ημερομηνία ελέγχου)"}${stored ? ` - νεότερο από τον αποθηκευμένο (${storedAt || "-"}), που κρατήθηκε ως backup` : ""}`);
     return this.programs;
   }

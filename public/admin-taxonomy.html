@@ -104,6 +104,7 @@ details.change-list ul{margin:8px 0 4px 18px;padding:0;font-size:13px}
     <button class="tab-btn" id="tabBtnAnalytics" type="button">📊 Analytics</button>
     <button class="tab-btn" id="tabBtnCatalog" type="button">📚 Κατάλογος</button>
     <button class="tab-btn" id="tabBtnLexicon" type="button">📖 Λεξικό</button>
+    <button class="tab-btn" id="tabBtnConceptManagement" type="button">🧭 Concept Management</button>
   </div>
 
   <div id="tab-taxonomy">
@@ -141,6 +142,10 @@ details.change-list ul{margin:8px 0 4px 18px;padding:0;font-size:13px}
   </div>
 
   <div id="tab-lexicon" style="display:none"><div id="lexRoot"></div></div>
+
+  <div id="tab-concept-management" style="display:none">
+    <div id="conceptManagementRoot"></div>
+  </div>
 
   <div id="tab-catalog" style="display:none">
     <section class="panel">
@@ -183,6 +188,7 @@ const TABS = [
   ["tabBtnAnalytics", "tab-analytics"],
   ["tabBtnCatalog", "tab-catalog"],
   ["tabBtnLexicon", "tab-lexicon"],
+  ["tabBtnConceptManagement", "tab-concept-management"],
 ];
 TABS.forEach(([btnId]) => {
   document.getElementById(btnId).addEventListener("click", () => {
@@ -193,6 +199,7 @@ TABS.forEach(([btnId]) => {
     });
     if (btnId === "tabBtnCatalog" && adminToken) loadCatalog(true);
     if (btnId === "tabBtnLexicon" && window.lexOnShow) window.lexOnShow();
+    if (btnId === "tabBtnConceptManagement" && window.conceptManagementOnShow) window.conceptManagementOnShow();
   });
 });
 
@@ -308,6 +315,7 @@ document.getElementById("unlockBtn").addEventListener("click", () => {
   showStatus("Token αποθηκεύτηκε για αυτή τη σελίδα (όχι μόνιμα) — μπορείς να αποθηκεύσεις αλλαγές.", "ok");
   if (document.getElementById("tab-catalog").style.display !== "none") loadCatalog(true);
   if (window.lexOnUnlock) window.lexOnUnlock();
+  if (window.conceptManagementOnUnlock) window.conceptManagementOnUnlock();
 });
 
 // ---- Export of everything EKPA edits (lexicon, taxonomy, catalog) ----
@@ -674,5 +682,6 @@ document.getElementById("catalogRefreshBtn").addEventListener("click", () => loa
 </script>
 <script src="search-engine.js"></script>
 <script src="admin-lexicon.js"></script>
+<script src="admin-concept-management.js?v=1.4B"></script>
 </body>
 </html>

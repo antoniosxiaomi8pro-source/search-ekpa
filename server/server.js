@@ -20,6 +20,11 @@ const { CatalogStore } = require("./catalog-store.js");
 const RankingDiff = require("./ranking-diff.js");
 const { LexiconStore } = require("./lexicon-store.js");
 const { previewLexicon } = require("./lexicon-preview.js");
+const {
+  previewConceptDraft,
+  applyDraftChanges,
+  checkProtectedBaseline
+} = require("./concept-preview.js");
 
 const PUBLIC_DIR = path.join(__dirname, "../public");
 // ---- Persistent data directory ----
@@ -607,6 +612,448 @@ app.get("/api/programs", searchLimiter, (req, res) => {
   res.json(PROGRAMS);
 });
 
+// Read-only concept management diagnostics.
+// This endpoint never mutates catalog/taxonomy/search state.
+app.get("/api/admin/concept-management", catalogStatusLimiter, checkAdminToken, (req, res) => {
+  const concept = String(req.query.concept || "").trim();
+
+  const conceptKeys = new Set(Object.keys(CONCEPTS || {}));
+  for (const p of ALL_PROGRAMS) {
+    for (const c of p.concepts || []) conceptKeys.add(c);
+    for (const c of Object.keys(p.concept_assignment_status || {})) conceptKeys.add(c);
+  }
+
+  const concepts = [...conceptKeys].sort();
+
+  if (!concept) {
+    return res.json({
+      ok: true,
+      concepts,
+      programs_total: ALL_PROGRAMS.length,
+      active_programs: PROGRAMS.length
+    });
+  }
+
+  if (!conceptKeys.has(concept)) {
+    return res.status(404).json({
+      error: `Άγνωστο concept: ${concept}`
+    });
+  }
+
+  const norm = (value) =>
+    EkpaSearch.foldGreek(EkpaSearch.normalize(String(value || "")));
+
+  const conceptTerms = CONCEPTS[concept] || [];
+  const normalizedTerms = new Set(
+    conceptTerms.map(norm).filter(Boolean)
+  );
+
+  const exactMatches = (values) =>
+    (values || []).filter((value) => normalizedTerms.has(norm(value)));
+
+  const allPrograms = ALL_PROGRAMS.map((p) => {
+    const assignment =
+      p.concept_assignment_status &&
+      p.concept_assignment_status[concept];
+
+    const assigned = (p.concepts || []).includes(concept);
+
+    const primaryMatches = exactMatches(
+      p.primary_area ? [p.primary_area] : []
+    );
+
+    const areaMatches = exactMatches(p.areas_of_study || []);
+    const cmsTagMatches = exactMatches(p.tags_cms || []);
+    const generatedTagMatches = exactMatches(p.tags || []);
+
+    return {
+      slug: p.slug,
+      title: p.title,
+      status: p.status,
+      assigned,
+      audited: !!assignment,
+      assignment_status: assignment ? assignment.status : null,
+      source: assignment ? assignment.source : null,
+      reason: assignment ? assignment.reason : null,
+      primary_area: p.primary_area || null,
+      areas_of_study: p.areas_of_study || [],
+      tags_cms: p.tags_cms || [],
+      tags: p.tags || [],
+      concepts: p.concepts || [],
+      signal_explanation: {
+        explicit_assignment: assigned,
+        audit_record: !!assignment,
+        primary_area_matches: primaryMatches,
+        areas_of_study_matches: areaMatches,
+        cms_tag_matches: cmsTagMatches,
+        generated_tag_matches: generatedTagMatches
+      }
+    };
+  });
+
+  const summaryStatusCounts = {
+    CONFIRMED: 0,
+    CURATED: 0,
+    REVIEW: 0,
+    REJECT: 0,
+    UNCLASSIFIED: 0
+  };
+
+  for (const p of allPrograms) {
+    if (
+      p.assignment_status &&
+      Object.prototype.hasOwnProperty.call(
+        summaryStatusCounts,
+        p.assignment_status
+      )
+    ) {
+      summaryStatusCounts[p.assignment_status]++;
+    } else {
+      summaryStatusCounts.UNCLASSIFIED++;
+    }
+  }
+
+  const search = String(req.query.search || "").trim();
+  const searchNorm = norm(search);
+
+  const assignedFilter = String(req.query.assigned || "all").toLowerCase();
+
+  const allowedAssigned = new Set(["all", "yes", "no"]);
+  if (!allowedAssigned.has(assignedFilter)) {
+    return res.status(400).json({
+      error: "Το assigned πρέπει να είναι all, yes ή no."
+    });
+  }
+
+  const statusFilter = String(req.query.status || "").trim().toUpperCase();
+  const allowedStatuses = new Set([
+    "",
+    "CONFIRMED",
+    "CURATED",
+    "REVIEW",
+    "REJECT",
+    "UNCLASSIFIED"
+  ]);
+
+  if (!allowedStatuses.has(statusFilter)) {
+    return res.status(400).json({
+      error: "Μη έγκυρο status filter."
+    });
+  }
+
+  let filtered = allPrograms.filter((p) => {
+    if (assignedFilter === "yes" && !p.assigned) return false;
+    if (assignedFilter === "no" && p.assigned) return false;
+
+    const effectiveStatus = p.assignment_status || "UNCLASSIFIED";
+    if (statusFilter && effectiveStatus !== statusFilter) return false;
+
+    if (searchNorm) {
+      const searchable = [
+        p.title,
+        p.slug
+      ]
+        .map(norm)
+        .join(" ");
+
+      if (!searchable.includes(searchNorm)) return false;
+    }
+
+    return true;
+  });
+
+  filtered.sort((a, b) =>
+    String(a.title || "").localeCompare(
+      String(b.title || ""),
+      "el",
+      { sensitivity: "base" }
+    )
+  );
+
+  const rawPage = Number.parseInt(req.query.page, 10);
+  const rawPageSize = Number.parseInt(req.query.page_size, 10);
+
+  const pageSize = Number.isFinite(rawPageSize)
+    ? Math.min(Math.max(rawPageSize, 1), 100)
+    : 50;
+
+  const total = filtered.length;
+  const pages = Math.max(1, Math.ceil(total / pageSize));
+
+  const page = Number.isFinite(rawPage)
+    ? Math.min(Math.max(rawPage, 1), pages)
+    : 1;
+
+  const from = (page - 1) * pageSize;
+  const pagedPrograms = filtered.slice(from, from + pageSize);
+
+  res.set("Cache-Control", "no-store");
+
+  res.json({
+    ok: true,
+    concept,
+    concept_terms: conceptTerms,
+
+    catalog_total: ALL_PROGRAMS.length,
+    active_programs: PROGRAMS.length,
+
+    audited_count: allPrograms.filter((p) => p.audited).length,
+    assigned_count: allPrograms.filter((p) => p.assigned).length,
+
+    status_counts: summaryStatusCounts,
+
+    filtered_total: total,
+    page,
+    page_size: pageSize,
+    pages,
+
+    filters: {
+      search,
+      assigned: assignedFilter,
+      status: statusFilter || null
+    },
+
+    programs: pagedPrograms
+  });
+});
+
+// Preview Concept Management draft safely.
+// Never writes catalog/taxonomy/search data.
+app.post(
+  "/api/admin/concept-management/preview",
+  adminLimiter,
+  checkAdminToken,
+  async (req, res) => {
+    try {
+      if (!PROTECTED_BASELINE) {
+        return res.status(503).json({
+          error: "Το protected baseline δεν είναι διαθέσιμο."
+        });
+      }
+
+      const body = req.body || {};
+      const concept = String(body.concept || "").trim();
+      const changes = Array.isArray(body.changes) ? body.changes : [];
+
+      const baseVersion = catalogVersion();
+
+      const result = await previewConceptDraft({
+        programsAll: ALL_PROGRAMS,
+        concepts: CONCEPTS,
+        fixture: RANKING_FIXTURE || {},
+        protectedBaseline: PROTECTED_BASELINE,
+        concept,
+        changes
+      });
+
+      if (baseVersion !== catalogVersion()) {
+        return res.status(409).json({
+          error: "Ο κατάλογος άλλαξε κατά τη διάρκεια του Preview. Τρέξε νέο Preview."
+        });
+      }
+
+      res.set("Cache-Control", "no-store");
+      res.json({
+        ...result,
+        base_version: baseVersion
+      });
+    } catch (err) {
+      console.error("Concept Management preview failed:", err);
+      res.status(400).json({
+        error: String(err.message || err)
+      });
+    }
+  }
+);
+
+
+// Safe Publish for Concept Management.
+// The browser Preview is informative only. Every Publish is independently
+// revalidated on the server against the exact current catalog version.
+app.post(
+  "/api/admin/concept-management/publish",
+  adminLimiter,
+  checkAdminToken,
+  async (req, res) => {
+    if (!DATA_DIR) {
+      return res.status(400).json({
+        error:
+          "Ο server δεν έχει DATA_DIR. Το Concept Management δεν μπορεί να κάνει persistent Publish."
+      });
+    }
+
+    if (!PROTECTED_BASELINE) {
+      return res.status(503).json({
+        error: "Το protected baseline δεν είναι διαθέσιμο."
+      });
+    }
+
+    const body = req.body || {};
+    const concept = String(body.concept || "").trim();
+    const changes = Array.isArray(body.changes) ? body.changes : [];
+    const requestedBaseVersion = String(body.base_version || "").trim();
+
+    if (body.confirm !== true) {
+      return res.status(400).json({
+        error: "Χρειάζεται ρητή επιβεβαίωση Publish."
+      });
+    }
+
+    if (!requestedBaseVersion) {
+      return res.status(400).json({
+        error: "Λείπει το base_version. Τρέξε νέο Preview."
+      });
+    }
+
+    const beforeVersion = catalogVersion();
+
+    if (requestedBaseVersion !== beforeVersion) {
+      return res.status(409).json({
+        error:
+          "Ο κατάλογος άλλαξε μετά το Preview. Το Draft είναι stale — τρέξε νέο Preview.",
+        current_version: beforeVersion
+      });
+    }
+
+    try {
+      // Mandatory server-side re-preview. The previous browser Preview never
+      // authorizes a Publish by itself.
+      const revalidated = await previewConceptDraft({
+        programsAll: ALL_PROGRAMS,
+        concepts: CONCEPTS,
+        fixture: RANKING_FIXTURE || {},
+        protectedBaseline: PROTECTED_BASELINE,
+        concept,
+        changes
+      });
+
+      // Nothing may have changed while the asynchronous ranking comparison ran.
+      if (beforeVersion !== catalogVersion()) {
+        return res.status(409).json({
+          error:
+            "Ο κατάλογος άλλαξε κατά το server-side validation. Τρέξε νέο Preview."
+        });
+      }
+
+      if (revalidated.blocked) {
+        return res.status(409).json({
+          error:
+            "Το Publish μπλοκαρίστηκε από το Protected Baseline.",
+          preview: revalidated
+        });
+      }
+
+      const { candidate } = applyDraftChanges(
+        ALL_PROGRAMS,
+        concept,
+        changes
+      );
+
+      const backupsBefore = new Set(
+        catalogStore.listBackups().map((b) => b.file)
+      );
+
+      // CatalogStore.apply() performs the automatic backup and atomic write.
+      const appliedCatalog = catalogStore.apply(candidate, {
+        source: "concept-management",
+        concept,
+        base_version: beforeVersion,
+        changed_slugs: changes.map((c) => c.slug)
+      });
+
+      setCatalog(appliedCatalog);
+      quickCheckCache = null;
+
+      const backupsAfter = catalogStore.listBackups();
+
+      const publishBackup = backupsAfter.find(
+        (b) =>
+          b.reason === "before-apply" &&
+          !backupsBefore.has(b.file)
+      );
+
+      // Mandatory post-publish verification against the actual live catalog.
+      let postVerification = checkProtectedBaseline(
+        ALL_PROGRAMS,
+        CONCEPTS,
+        PROTECTED_BASELINE
+      );
+
+      // Test-only fault injection for the automatic-rollback failure path.
+      // Requires BOTH NODE_ENV=test and the explicit test flag, so normal
+      // local/staging/production execution is unaffected.
+      if (
+        process.env.NODE_ENV === "test" &&
+        process.env.TEST_ONLY_CONCEPT_POST_VERIFY_FAIL === "1"
+      ) {
+        postVerification = {
+          ok: false,
+          failures: [{
+            query: "__test_only__",
+            reason: "forced_post_publish_verification_failure"
+          }]
+        };
+      }
+
+      if (!postVerification.ok) {
+        try {
+          const restored = catalogStore.rollback(
+            publishBackup ? publishBackup.file : undefined
+          );
+
+          setCatalog(restored);
+          quickCheckCache = null;
+
+          return res.status(500).json({
+            error:
+              "Το post-publish verification απέτυχε. Έγινε αυτόματο rollback.",
+            rolled_back: true,
+            failed_verification: postVerification,
+            live_version: catalogVersion()
+          });
+        } catch (rollbackError) {
+          console.error(
+            "Concept Management automatic rollback failed:",
+            rollbackError
+          );
+
+          return res.status(500).json({
+            error:
+              "Το post-publish verification απέτυχε ΚΑΙ απέτυχε το automatic rollback. Απαιτείται άμεσος τεχνικός έλεγχος.",
+            rolled_back: false
+          });
+        }
+      }
+
+      if (catalogJob && catalogJob.state === "done") {
+        catalogJob.state = "stale";
+      }
+
+      res.set("Cache-Control", "no-store");
+
+      return res.json({
+        ok: true,
+        published: true,
+        concept,
+        draft_changes: changes.length,
+        previous_version: beforeVersion,
+        version: catalogVersion(),
+        backup_file: publishBackup
+          ? publishBackup.file
+          : null,
+        protected_baseline: postVerification,
+        live: liveCatalogInfo()
+      });
+    } catch (err) {
+      console.error("Concept Management publish failed:", err);
+
+      return res.status(400).json({
+        error: String(err.message || err)
+      });
+    }
+  }
+);
+
 // Healthcheck target (Railway Settings → Healthcheck Path / uptime monitors).
 // `programs` stays the full catalog size (IT's smoke tests expect it); `active_programs`
 // is what visitors can actually find.
@@ -654,11 +1101,22 @@ function isValidConceptsShape(data) {
 
 // ---- Ranking-drift guard ----
 const RANKING_FIXTURE_PATH = path.join(__dirname, "../test/fixtures/search-regression.json");
+const PROTECTED_BASELINE_PATH = path.join(__dirname, "../test/fixtures/protected-search-baseline.json");
+
 let RANKING_FIXTURE = null;
+let PROTECTED_BASELINE = null;
 try {
   RANKING_FIXTURE = JSON.parse(fs.readFileSync(RANKING_FIXTURE_PATH, "utf-8"));
 } catch (e) {
   console.error("Ranking-drift guard: δεν βρέθηκε το test/fixtures/search-regression.json - ο έλεγχος θα παραλείπεται.");
+}
+
+try {
+  PROTECTED_BASELINE = JSON.parse(
+    fs.readFileSync(PROTECTED_BASELINE_PATH, "utf-8")
+  );
+} catch (e) {
+  console.error("Protected baseline: δεν βρέθηκε το protected-search-baseline.json.");
 }
 
 function checkRankingDrift(newConcepts) {
@@ -830,6 +1288,13 @@ const CATALOG_CHECK_DELAY_MS = Number(process.env.CATALOG_CHECK_DELAY_MS) >= 0 &
 const CATALOG_SITE_ORIGIN = process.env.CATALOG_SITE_ORIGIN || undefined; // tests only
 let catalogJob = null; // { id, mode, state, started_at, finished_at, progress, error, summary, diff, ranking, candidate, base_checked_at, base_slugs }
 let quickCheckCache = null; // { at, result } - cleared whenever the live catalog changes
+
+function catalogVersion(list = ALL_PROGRAMS) {
+  return require("node:crypto")
+    .createHash("sha256")
+    .update(JSON.stringify(list))
+    .digest("hex");
+}
 
 function liveCatalogInfo() {
   return {
