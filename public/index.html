@@ -87,6 +87,7 @@ input:focus,select:focus{border-color:var(--blue);box-shadow:0 0 0 4px rgba(11,7
 <div>
 <div class="results-header"><span id="info"></span><span id="expanded"></span></div>
 <div id="results" class="results"></div>
+<div id="loadMoreWrap" style="text-align:center;margin:18px 0 30px;display:none"><button id="loadMoreBtn" type="button">Φόρτωση περισσότερων</button></div>
 </div>
 </div>
 </main>
@@ -158,6 +159,7 @@ const AREA_COUNTS = (function(){
   });
 })();
 const TITLE_SORTED = PROGRAMS.slice().sort((a,b)=>String(a.title).localeCompare(String(b.title),"el"));
+let visibleLimit = 40;
 
 function getResults(){
   const filter = state.area ? (p => (p.areas_of_study||[]).includes(state.area)) : null;
@@ -173,7 +175,7 @@ function renderAreas(){
   document.getElementById("area").innerHTML='<option value="">Όλες οι κατευθύνσεις</option>'+AREA_COUNTS.map(([x,c])=>`<option value="${esc(x)}">${esc(x)} (${c})</option>`).join("");
 }
 function render(){
-  const r=getResults(), shown=r.slice(0,40);
+  const r=getResults(), shown=r.slice(0,visibleLimit);
   trackSearchAnalytics(state.q,r.length);
   const conceptCount=Object.keys(CONCEPTS).length;
   document.getElementById("sPrograms").textContent=PROGRAMS.length;
@@ -185,6 +187,8 @@ function render(){
   document.getElementById("info").textContent=`${r.length} αποτελέσματα · εμφανίζονται ${shown.length}`;
   document.getElementById("expanded").innerHTML=state.q.trim().length>=2?`<b>Expanded:</b> ${esc(Engine.describeExpansion(PROGRAMS,CONCEPTS,state.q).join(", "))}`:`Η αναζήτηση κάνει expansion σε ${conceptCount} concepts με whole-word/phrase matching.`;
   const el=document.getElementById("results");
+  const loadMoreWrap=document.getElementById("loadMoreWrap");
+  loadMoreWrap.style.display = shown.length < r.length ? "block" : "none";
   if(!shown.length){el.innerHTML='<div class="empty">Δεν βρέθηκαν αποτελέσματα.</div>';return;}
   el.innerHTML=shown.map(p=>{
     const img=p.image_url||"";
@@ -223,6 +227,12 @@ function trackSearchAnalytics(query,resultCount){
   _lastTrackedQuery=q;
   postBeacon("/api/track-search",{query:q,result_count:resultCount});
 }
+
+document.getElementById("loadMoreBtn").addEventListener("click",()=>{
+  visibleLimit += 40;
+  render();
+});
+
 document.getElementById("results").addEventListener("click",e=>{
   const a=e.target.closest("a[data-key]");
   if(a) postBeacon("/api/track-click",{query:state.q,program_id:a.dataset.key});
@@ -230,10 +240,11 @@ document.getElementById("results").addEventListener("click",e=>{
 let _searchDebounce=null;
 document.getElementById("q").oninput=e=>{
   state.q=e.target.value;
+  visibleLimit=40;
   clearTimeout(_searchDebounce);
   _searchDebounce=setTimeout(render,120);
 };
-document.getElementById("area").onchange=e=>{state.area=e.target.value;render();};
+document.getElementById("area").onchange=e=>{state.area=e.target.value;visibleLimit=40;render();};
 renderAreas();render();
 
 // Deep-link support: /?q=... prefills the box and runs the search on load,
