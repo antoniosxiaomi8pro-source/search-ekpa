@@ -388,7 +388,12 @@
   function getIndex(programs) {
     let idx = indexCache.get(programs);
     if (!idx) {
-      idx = { entries: programs.map(buildEntry), vocab: buildVocabulary(programs), rankCache: new Map(), rankCacheConcepts: null };
+      const provenanceConcepts = new Set();
+      programs.forEach((p) => {
+        const map = p && p.concept_assignment_status;
+        if (map && typeof map === "object") Object.keys(map).forEach((k) => provenanceConcepts.add(k));
+      });
+      idx = { entries: programs.map(buildEntry), vocab: buildVocabulary(programs), provenanceConcepts, rankCache: new Map(), rankCacheConcepts: null };
       indexCache.set(programs, idx);
     }
     return idx;
@@ -676,6 +681,125 @@
     if (!program || !categoryName) return false;
     if (program.primary_area === categoryName) return true;
     return Array.isArray(program.areas_of_study) && program.areas_of_study.includes(categoryName);
+  }
+
+
+  // --- law-v2 prototype: evidence-gated concept intent --------------------
+  // This gate is dormant for concepts that have no provenance decisions in
+  // the current program array. That keeps all legacy concepts backward-
+  // compatible until they have been audited.
+  function conceptAssignmentStatus(program, conceptKey) {
+    const map = program && program.concept_assignment_status;
+    const item = map && map[conceptKey];
+    return item && item.status ? String(item.status).toUpperCase() : null;
+  }
+
+  function hasConceptProvenance(idx, conceptKey) {
+    return !!(idx && idx.provenanceConcepts && idx.provenanceConcepts.has(conceptKey));
+  }
+
+  function conceptForCategoryName(concepts, categoryName, provenanceConcepts) {
+    if (!concepts || !categoryName || !provenanceConcepts || !provenanceConcepts.size) return null;
+    const cat = foldGreek(normalize(categoryName));
+    const catTokens = new Set(cat.split(" ").filter(Boolean));
+    const matches = [];
+    provenanceConcepts.forEach((key) => {
+      const terms = (concepts[key] || []).map((t) => foldGreek(normalize(t)));
+      if (terms.some((t) => phraseMatches(t, cat, catTokens))) matches.push(key);
+    });
+    return matches.length === 1 ? matches[0] : null;
+  }
+
+  function resolveSingleConceptIntent(programs, concepts, query, categoryNames, idx) {
+    if (typeof categoryNames === "string") {
+      const byCategory = conceptForCategoryName(concepts, categoryNames, idx.provenanceConcepts);
+      if (byCategory && hasConceptProvenance(idx, byCategory)) return byCategory;
+    }
+
+    const meaningful = queryVariants(query)
+      .map((v) => v.split(" ").filter((w) => w.length >= 2 && !STOPWORDS.has(w)))
+      .filter((words) => words.length === 1);
+    if (!meaningful.length) return null;
+
+    // First, resolve an exact single-token query directly against audited
+    // concept terms. This is critical for Greek variants such as `δίκαιο`:
+    // the query itself is an exact law term, but expansion may overlap with
+    // only one of the concept's first terms and therefore miss the old >=2
+    // overlap threshold.
+    const directTokens = new Set(
+      meaningful.flatMap((words) => words.map((w) => foldGreek(normalize(w))))
+    );
+    const directCandidates = [];
+    (idx.provenanceConcepts || new Set()).forEach((key) => {
+      const terms = (concepts[key] || []).map((t) => foldGreek(normalize(t)));
+      if (terms.some((t) => directTokens.has(t))) directCandidates.push(key);
+    });
+    if (directCandidates.length === 1) return directCandidates[0];
+
+    const expanded = expandQueryDetailed(query, concepts, idx.vocab).termsFlat;
+    const expandedSet = new Set(expanded);
+    const candidates = [];
+    (idx.provenanceConcepts || new Set()).forEach((key) => {
+      const first = (concepts[key] || []).slice(0, 6).map((t) => foldGreek(normalize(t)));
+      const overlap = first.filter((t) => expandedSet.has(t)).length;
+      if (overlap >= 2) candidates.push(key);
+    });
+    return candidates.length === 1 ? candidates[0] : null;
+  }
+
+  function trustedCmsTags(program) {
+    const out = new Set();
+    (program.tags_cms || []).forEach((t) => {
+      const n = foldGreek(normalize(t));
+      if (n) out.add(n);
+    });
+    return foldGreek(normalize(Array.from(out).join(" ")));
+  }
+
+  function hasDirectCoreEvidence(program, e, concepts, conceptKey, variants) {
+    // For an explicitly REJECTed broad concept assignment, do not let
+    // generated tags inherited from OTHER concepts rescue the record.
+    //
+    // Example: criminology legitimately generates `ποινικο δικαιο`, but that
+    // must not re-qualify a program for the broad `δίκαιο` / `law` intent after
+    // its law assignment has been explicitly rejected.
+    //
+    // CURATED / CONFIRMED / REVIEW records are already accepted before this
+    // function is called, so legitimate interdisciplinary law programs remain
+    // unaffected. A REJECT record can only survive through explicit core
+    // evidence authored in title, primary taxonomy, or CMS tags.
+    const cmsTags = trustedCmsTags(program);
+    const cmsTagTok = new Set(cmsTags.split(" ").filter(Boolean));
+    return variants.some((raw) =>
+      containsTerm(e.title, e.titleTok, raw) ||
+      containsTerm(e.primaryArea, e.primaryAreaTok, raw) ||
+      containsTerm(cmsTags, cmsTagTok, raw)
+    );
+  }
+
+  function primaryAreaSupportsConcept(program, concepts, conceptKey) {
+    const primary = foldGreek(normalize(program && program.primary_area));
+    if (!primary) return false;
+    const tokens = new Set(primary.split(" "));
+    return (concepts[conceptKey] || [])
+      .map((t) => foldGreek(normalize(t)))
+      .some((t) => phraseMatches(t, primary, tokens));
+  }
+
+  function eligibleForConceptIntent(program, entry, concepts, conceptKey, variants) {
+    if (!conceptKey) return true;
+    const status = conceptAssignmentStatus(program, conceptKey);
+    if (status === "CONFIRMED" || status === "CURATED" || status === "REVIEW") return true;
+    if (status === "REJECT") {
+      // A rejected concept cannot qualify the record through expansion,
+      // secondary taxonomy, generated tags from that rejected concept, or
+      // audience-only description. Only explicit direct evidence from
+      // title/primary/CMS tags may still qualify the rejected assignment.
+      return hasDirectCoreEvidence(program, entry, concepts, conceptKey, variants);
+    }
+    // Legacy/unaudited records are intentionally backward-compatible. Evidence
+    // gating only activates after an explicit provenance decision exists.
+    return true;
   }
 
   // --- Checkpoint B, Type B: "audience/profession -> controlled topic set".
@@ -1150,6 +1274,7 @@
       // intent resolution failing NEVER produces zero results by itself.
       let categoryNames = resolveCategoryIntent(programs, query);
       if (!categoryNames) categoryNames = resolveAudienceMultiCategoryIntent(programs, query);
+      const conceptIntent = resolveSingleConceptIntent(programs, concepts, query, categoryNames, idx);
       if (categoryNames) {
         // Category intent resolved with confidence: the candidate set is EVERY
         // official member of that category (or, for an array, the UNION of
@@ -1162,6 +1287,7 @@
         const names = Array.isArray(categoryNames) ? categoryNames : [categoryNames];
         for (let i = 0; i < idx.entries.length; i++) {
           if (!names.some((name) => programBelongsToCategory(idx.entries[i].p, name))) continue;
+          if (conceptIntent && !eligibleForConceptIntent(idx.entries[i].p, idx.entries[i], concepts, conceptIntent, variants)) continue;
           ranked.push({ i, s: scoreEntry(idx.entries[i], variants, terms, byWord) });
         }
         ranked.sort((a, b) => b.s - a.s || a.i - b.i);
@@ -1195,6 +1321,7 @@
           }
         } else {
           for (let i = 0; i < idx.entries.length; i++) {
+            if (conceptIntent && !eligibleForConceptIntent(idx.entries[i].p, idx.entries[i], concepts, conceptIntent, variants)) continue;
             const s = scoreEntry(idx.entries[i], variants, terms, byWord);
             if (s > 0) ranked.push({ i, s });
           }
