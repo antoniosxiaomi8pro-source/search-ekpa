@@ -240,3 +240,53 @@ R5    Πηγή feed IT                            ⬜ (αναμονή Γιάνν
 **Έλεγχοι (script):** 174/174 tests · server του πακέτου: typeahead, paged, CORS, `category_links`, κρυμμένα, `/lexicon.json`, seed στο DATA_DIR, κατάσταση λεξικού χωρίς σφάλμα, καρτέλα και εξαγωγή στο admin, **προεπισκόπηση λεξικού (worker) χωρίς αλλαγές** · 0 κενά στα ορατά προγράμματα. Επιπλέον χειροκίνητα: αποσυμπίεση και πραγματική εκκίνηση του φακέλου του πακέτου (health 702/693, `/lexicon.json`, λεξικό από `data_dir` χωρίς σφάλμα)· τα αρχεία λεξικού ίδια byte-for-byte με το git.
 **Σημειώσεις:** (1) το v30 δεν έχει δοκιμαστεί ακόμα από τον Αντώνη στο TESTING2· (2) τα manifest του επόμενου πακέτου θα περιλαμβάνουν SHA και για τα αρχεία του λεξικού (προστέθηκε στο script μετά το build).
 **Επόμενα:** R3.3 (ποιότητα δεδομένων + ευθυγράμμιση κατηγορίας με πλήρη έλεγχο top-3) → R3.2 («Προτάσεις»).
+
+## 2026-10-08 — A2 / A2.1: Curated Acronym & Alias Resolver + Admin Query Aliases — CLOSED
+
+**Status:** PASS / CLOSED.
+
+**A2 — Curated Acronym & Alias Resolver**
+- Προστέθηκε ρητός, curated token-level alias resolver στη μηχανή αναζήτησης.
+- Πρώτη canonical αντιστοίχιση: `HRM` → `human resources`.
+- Η αντιστοίχιση ισχύει μόνο σε ακριβές token και όχι σε substrings (`XHRM`, `HRM2026`, `myhrm` δεν αλλάζουν).
+- Δεν υπάρχει generic acronym guessing ή αυτόματη παραγωγή aliases.
+- Το υπάρχον whole-query alias `λεγαλ` → `legal` παραμένει ενεργό.
+- Η A1 concatenated-query recognition παραμένει ανεξάρτητη και προστατευμένη.
+
+**A2.1 — Admin Query Aliases / Acronyms**
+- Προστέθηκε ενότητα `Query Aliases / Acronyms` στην καρτέλα `📖 Λεξικό`.
+- Υποστηρίζονται:
+  - Whole-query aliases (`query_aliases`)
+  - Token / Acronym aliases (`token_aliases`)
+- Οι αλλαγές περνούν από το υπάρχον governed flow:
+  `Preview → validation → version check → Save → backup → live apply → rollback`.
+- Το preview πλέον περιλαμβάνει additions/removals/changes και για query/token aliases.
+- Δεν προστέθηκε νέο API· χρησιμοποιούνται τα υπάρχοντα lexicon endpoints και το υπάρχον persistent `DATA_DIR/lexicon.json`.
+
+**Validation**
+- Dedicated A2/A2.1 tests: 20/20 PASS.
+- Full regression: 217/217 PASS.
+- A2 performance benchmark: χωρίς παθολογική απόκλιση· HRM overhead ~1.5%, compound alias ~3.4%.
+- A2.1 preview impact check: 174 queries checked, 1 intended alias change, χωρίς collateral non-alias drift στο local validation.
+- Local browser flow: Add → Preview → Save → Live → Rollback PASS.
+- Commit: `49fbbde` (`feat(search): add concatenated queries and curated alias admin`).
+- GitHub `main`: PASS.
+- Railway deployment: ACTIVE / deployment successful.
+- Railway persistent lexicon migration completed μέσω Admin UI.
+- Live Railway lexicon περιέχει:
+  - `λεγαλ` → `legal`
+  - `HRM` → `human resources`
+- Railway E2E parity: `HRM` και `human resources` επιστρέφουν byte-for-byte identical search output, ίδια σειρά και ίδια scores.
+
+**Architecture impact**
+- Τα aliases παραμένουν curated lexicon data και όχι hardcoded inference.
+- Δεν αλλάζει το search API contract.
+- Δεν εισάγεται generic acronym inference.
+- Το persistent Railway lexicon παραμένει source of truth για runtime lexicon overrides.
+
+**Known separate relevance issue**
+- Το πρόγραμμα `Διαταραχές Πρόσληψης Τροφής` εμφανίζεται πολύ ψηλά σε `human resources` λόγω HR-related tags στο dataset.
+- Δεν αποτελεί bug του A2/A2.1 και δεν διορθώθηκε σε αυτό το scope.
+
+**Next gate**
+- Συνέχεια στο επόμενο προγραμματισμένο search-quality / roadmap gate, χωρίς αλλαγή του συμφωνημένου scope.
