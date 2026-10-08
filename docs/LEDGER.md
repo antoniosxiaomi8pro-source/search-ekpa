@@ -289,4 +289,51 @@ R5    Πηγή feed IT                            ⬜ (αναμονή Γιάνν
 - Δεν αποτελεί bug του A2/A2.1 και δεν διορθώθηκε σε αυτό το scope.
 
 **Next gate**
-- Συνέχεια στο επόμενο προγραμματισμένο search-quality / roadmap gate, χωρίς αλλαγή του συμφωνημένου scope.
+- **A3 — Phrase Intent Engine**.
+- Πρώτο acceptance case: `Τρίτη ηλικία`.
+- Η σειρά της v1.5A συνεχίζει αυστηρά A3 → A4 → A5 → A6 → A7 → A8 → A9 → A10 → A11 → A12 → A13 → A14.
+
+## 2026-10-08 — EKPA Smart Finder v1.5: Canonical Roadmap Reconciliation
+
+**Απόφαση:** το παρακάτω είναι το επίσημο execution order για τη v1.5. Το παλιότερο R3.3 → R3.2 track παραμένει ιστορικό/παράλληλο workstream και **δεν υπερισχύει** της canonical σειράς v1.5A. Δεν ανοίγεται νέο scope και δεν αλλάζει η σειρά χωρίς ρητή απόφαση και καταγραφή στο ledger.
+
+### Phase 1 — v1.5A: Search Quality + Official Related Programs
+
+| Gate | Status | Canonical scope / evidence |
+|---|---|---|
+| **A0 — Baseline & Acceptance Contract** | **PASS / CLOSED** | Κλειδωμένα feedback cases: `ειδικηαγωγη`, `hrm`, `Τρίτη ηλικία`, `εικαστικά`, `ειδικός απορριμάτων`, `σινεμα`, price sorting, official Related Programs. Generic mechanisms only, όχι hardcoded patches. |
+| **A1 — Generic Concatenated Query Recognition** | **PASS / CLOSED** | Controlled/known multi-word phrase → joined form, unique resolution, ambiguity → no rewrite, no dictionary/fuzzy splitting. |
+| **A2 — Curated Acronym & Alias Resolver** | **PASS / CLOSED** | `HRM → human resources`, curated token-level aliases, exact-token safety, regression/performance/local/browser/GitHub/Railway parity PASS. |
+| **A2.1 — Admin Query Aliases / Acronyms** | **PASS / CLOSED** | Whole-query + token aliases στο governed Lexicon UI με Preview → Save → Backup → Rollback. |
+| **A3 — Phrase Intent Engine** | **NOT STARTED — NEXT** | Κύριο case: `Τρίτη ηλικία`. Semantic phrase intent ώστε το `ηλικία` να μην ανοίγει child-age false positives. |
+| **A4 — Token / Sub-token Safety** | **NOT STARTED** | Κύριο case: `εικαστικά`; αποτροπή collision `εικαστικά → δικαστική` με generic token/word-boundary safety. |
+| **A5 — Multi-term Relevance & Term Importance** | **NOT STARTED** | Κύριο case: `ειδικός απορριμάτων`; ο discriminating όρος `απορριμάτων` πρέπει να υπερισχύει του generic `ειδικός`. |
+| **A6 — Relevance-safe Price Sorting** | **NOT STARTED** | Query → relevance-qualified candidate set → price sorting. Η τιμή δεν επιτρέπεται να εισάγει άσχετα programs. |
+| **A7 — Official Related Programs** | **DESIGN LOCKED / IMPLEMENTATION NOT STARTED** | Official CMS/program page → preserve official order → active/existing only → max 8 → display exactly those → **no fallback scorer**. |
+| **A8 — Full Search Regression Pack** | **NOT STARTED** | Vicky cases + protected legal + Greeklish + typo + categories + audience + lexicon + compounds + acronyms + phrase intent + price sorting + official related. |
+| **A9 — Local Performance Validation** | **NOT STARTED as full v1.5A gate** | Search scoring, paged requests, cache behavior, compound/alias/phrase overhead. A2-only benchmark έχει ήδη PASS αλλά δεν κλείνει το A9. |
+| **A10 — Local Browser E2E** | **NOT STARTED as full v1.5A gate** | Πλήρες browser validation ολόκληρης της v1.5A πριν το final GitHub gate. |
+| **A11 — GitHub** | **NOT STARTED as final v1.5A gate** | Υπάρχουν incremental pushes για A1/A2/A2.1, αλλά το τελικό v1.5A GitHub gate κλείνει μόνο μετά A3–A10. |
+| **A12 — Railway Testing/Staging** | **NOT STARTED as full v1.5A gate** | Functional E2E + regression + performance E2E για ολόκληρη v1.5A. |
+| **A13 — testing.elearningekpa.gr / GTM Browser Validation** | **NOT STARTED** | Μετά το A12. Δεν αλλάζουμε GTM αν δεν χρειάζεται. |
+| **A14 — Documentation / IT Handoff** | **NOT STARTED** | Τελικό gate μετά από πλήρες PASS. |
+
+**Άμεσο επόμενο βήμα:** **A3.0 — Current-behavior audit για `Τρίτη ηλικία`**, χωρίς αλλαγή κώδικα ή dataset. Μετά: A3.1 acceptance contract → A3.2 generic design → implementation → dedicated tests → full regression → performance → browser validation.
+
+### Phase 2 — v1.5B: Concept Governance
+
+Ξεκινά **μόνο αφού η v1.5A κλείσει πλήρως**.
+
+- **B1 — Negative Concepts / Keywords:** NOT STARTED.
+- **B2 — Program → Concepts View:** NOT STARTED.
+- **B3 — Governance Precedence Contract:** NOT STARTED.
+- **B4 — Governance UI:** NOT STARTED.
+- **B5 — Full Governance Regression:** NOT STARTED.
+
+### Parallel Data Source Track — CMS JSON API
+
+Ξεχωριστό από το v1.5A/B search-engine roadmap.
+
+Συμφωνημένη κατεύθυνση: `GET /api/programs` με όλα τα programs, active/application status, price, description, categories, FAQ, lessons, official related programs, `updated_at`, monthly automatic sync και manual sync on demand. Υπάρχουν contract examples για **KPIs and HR Management using Artificial Intelligence** και **Ειδική Αγωγή**. Η ενσωμάτωση περιμένει πραγματικό endpoint από IT και δεν μπλοκάρει το A3–A14.
+
+**Governance rule:** σε κάθε gate ενημερώνεται αυτό το ledger με status, ακριβή αλλαγή, validation evidence, architecture/scope impact και αμέσως επόμενο βήμα.
