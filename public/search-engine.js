@@ -140,6 +140,26 @@
   // appear in this table may be expanded.
   const TOKEN_ALIASES = {};
 
+  // Explicit curated multi-word semantic intents loaded from lexicon.json.
+  // A phrase intent activates only when one of its registered phrases matches.
+  const PHRASE_INTENTS = {};
+
+  function resolvePhraseIntent(query) {
+    const normalized = foldGreek(normalize(String(query || "")));
+    if (!normalized) return null;
+
+    for (const intent of Object.values(PHRASE_INTENTS)) {
+      if (intent.phrases.includes(normalized)) {
+        return {
+          id: intent.id,
+          phrases: intent.phrases.slice(),
+          terms: intent.terms.slice()
+        };
+      }
+    }
+    return null;
+  }
+
   let compoundIndexCache = new WeakMap();
 
   function collectCompoundPhrases(programs, concepts) {
@@ -431,6 +451,21 @@
   // "αθλητική ψυχολογία" should prefer a program that is genuinely about both sports
   // AND psychology over one that is only heavily about psychology).
   function expandQueryDetailed(q, CONCEPTS, vocab) {
+    const phraseIntent = resolvePhraseIntent(q);
+
+    // A registered phrase intent is one semantic unit. Its constituent words
+    // must not leak into scoring as unrelated independent relevance terms.
+    // The curated terms remain explicit and governed by lexicon.json.
+    if (phraseIntent) {
+      const termsFlat = Array.from(new Set(phraseIntent.terms));
+      const byWord = {};
+      const phraseKey = phraseIntent.phrases[0];
+
+      byWord[phraseKey] = termsFlat.slice();
+
+      return { termsFlat, byWord };
+    }
+
     const allTerms = new Set();
     const byWord = {}; // original query word -> Set of terms attributable to it
     const folded = getFoldedConcepts(CONCEPTS);
@@ -1137,6 +1172,7 @@
       topicAliases: cloneJson(TOPIC_ALIASES),
       queryAliases: cloneJson(QUERY_ALIASES),
       tokenAliases: cloneJson(TOKEN_ALIASES),
+      phraseIntents: cloneJson(PHRASE_INTENTS),
       scan,
     };
   }
@@ -1153,6 +1189,7 @@
     replaceContents(TOPIC_ALIASES, t.topicAliases);
     replaceContents(QUERY_ALIASES, t.queryAliases);
     replaceContents(TOKEN_ALIASES, t.tokenAliases);
+    replaceContents(PHRASE_INTENTS, t.phraseIntents);
     Object.keys(AUDIENCE_SCAN_REGEX).forEach((k) => delete AUDIENCE_SCAN_REGEX[k]);
     Object.keys(t.scan).forEach((id) => { const re = buildScanRegex(t.scan[id]); if (re) AUDIENCE_SCAN_REGEX[id] = re; });
     indexCache = new WeakMap();
@@ -1184,7 +1221,7 @@
     };
     const id = (g, where) => { if (!g || typeof g.id !== "string" || !/^[a-z0-9_-]{1,40}$/.test(g.id)) fail("άκυρο id στο " + where + "."); return g.id; };
 
-    const t = { stopwords: new Set(), category: {}, audienceMulti: {}, audienceSets: {}, audienceAliases: {}, topicSets: {}, topicAliases: {}, queryAliases: {}, tokenAliases: {}, scan: {} };
+    const t = { stopwords: new Set(), category: {}, audienceMulti: {}, audienceSets: {}, audienceAliases: {}, topicSets: {}, topicAliases: {}, queryAliases: {}, tokenAliases: {}, phraseIntents: {}, scan: {} };
     const owner = {}; // folded word -> which table owns it
     const claim = (f, table, original) => {
       if (owner[f] && owner[f] !== table) fail("η λέξη «" + original + "» υπάρχει και στο «" + owner[f] + "» και στο «" + table + "».");
@@ -1277,6 +1314,39 @@
       t.tokenAliases[alias] = e.canonical.trim();
       claim(alias, "token_aliases", e.alias);
     });
+    const phraseIntents = lex.phrase_intents === undefined ? [] : lex.phrase_intents;
+    if (!Array.isArray(phraseIntents)) fail("το phrase_intents δεν είναι λίστα.");
+
+    const phraseIntentOwner = {};
+
+    phraseIntents.forEach((g) => {
+      const gid = id(g, "phrase_intents");
+      if (t.phraseIntents[gid]) fail("διπλό id «" + gid + "» στα phrase_intents.");
+
+      const phrases = strings(g.phrases, "phrase_intents.phrases", 100).map((phrase) => {
+        const f = foldWord(phrase);
+        if (!f.includes(" ")) fail("το phrase_intents.phrases πρέπει να περιέχει multi-word phrases.");
+
+        if (phraseIntentOwner[f] && phraseIntentOwner[f] !== gid) {
+          fail(
+            "η phrase «" + phrase + "» ανήκει σε δύο διαφορετικά phrase intents: «" +
+            phraseIntentOwner[f] + "» και «" + gid + "»."
+          );
+        }
+
+        phraseIntentOwner[f] = gid;
+        return f;
+      });
+
+      const terms = strings(g.terms, "phrase_intents.terms", 100).map((term) => {
+        const f = foldWord(term);
+        if (!f) fail("άκυρος όρος στο phrase_intents.terms.");
+        return f;
+      });
+
+      t.phraseIntents[gid] = { id: gid, phrases, terms };
+    });
+
     // A word that is both a stopword and an alias could never act as an alias (stopwords are dropped first).
     Object.keys(owner).forEach((f) => {
       if (owner[f] !== "stopwords" && t.stopwords.has(f)) fail("η λέξη «" + f + "» είναι και stopword και λέξη αντιστοίχισης.");
@@ -1295,6 +1365,7 @@
       topic_words: Object.keys(t.topicAliases).length,
       query_aliases: Object.keys(t.queryAliases).length,
       token_aliases: Object.keys(t.tokenAliases).length,
+      phrase_intents: Object.keys(t.phraseIntents).length,
     };
   }
   function resetLexicon() { applyTables(DEFAULT_TABLES); }
@@ -1477,9 +1548,11 @@
     const cached = idx.rankCache.get(key);
     if (cached) { idx.rankCache.delete(key); idx.rankCache.set(key, cached); return cached; }
 
+    const phraseIntent = resolvePhraseIntent(semanticQuery);
     const variants = Array.from(new Set([
       ...queryVariants(query),
-      ...queryVariants(semanticQuery)
+      ...queryVariants(semanticQuery),
+      ...(phraseIntent ? phraseIntent.phrases : [])
     ]));
     const { termsFlat: terms, byWord } = expandQueryDetailed(semanticQuery, concepts, idx.vocab);
     const ranked = [];
@@ -1585,6 +1658,6 @@
     STOPWORDS, buildCategoryIndex, resolveCategoryIntent, programBelongsToCategory,
     resolveAudienceMultiCategoryIntent, resolveAudienceProgramIntent, explicitlyTargetsPhilologists, resolveTopicIntent,
     setLexicon, resetLexicon, compileLexicon, getLexiconTables, getDefaultLexiconTables, LEXICON_SCHEMA_VERSION,
-    buildCompoundIndex, resolveConcatenatedQuery, resolveCuratedTokenAliases,
+    buildCompoundIndex, resolveConcatenatedQuery, resolveCuratedTokenAliases, resolvePhraseIntent,
   };
 });

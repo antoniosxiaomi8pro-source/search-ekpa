@@ -320,7 +320,7 @@
     }
   },
   "protected_file_hashes": {
-    "public/search-engine.js": "65bc44b8add8bfa4cf551def1d56b146c1f344146ff042336366d422a42babe1",
+    "public/search-engine.js": "90d603adaabac21a675f9810d7d166a76475d5ad53436a0c9e103741b32646ff",
     "release/gtm/ekpa-search-widget-gtm-v30-VALIDATED.txt": "42397e472759de5e37e0151994d1f83ef95fafbd4a3636237c846184fd7aa81a",
     "release/gtm/ekpa-search-widget-gtm-v30-PRODUCTION.txt": "cbdb1d365360f6c84a305f938aa361e2031c7302f1ff65894a117ebf30b9e0a8"
   }

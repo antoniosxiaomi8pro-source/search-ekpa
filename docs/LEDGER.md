@@ -305,8 +305,8 @@ R5    Πηγή feed IT                            ⬜ (αναμονή Γιάνν
 | **A1 — Generic Concatenated Query Recognition** | **PASS / CLOSED** | Controlled/known multi-word phrase → joined form, unique resolution, ambiguity → no rewrite, no dictionary/fuzzy splitting. |
 | **A2 — Curated Acronym & Alias Resolver** | **PASS / CLOSED** | `HRM → human resources`, curated token-level aliases, exact-token safety, regression/performance/local/browser/GitHub/Railway parity PASS. |
 | **A2.1 — Admin Query Aliases / Acronyms** | **PASS / CLOSED** | Whole-query + token aliases στο governed Lexicon UI με Preview → Save → Backup → Rollback. |
-| **A3 — Phrase Intent Engine** | **NOT STARTED — NEXT** | Κύριο case: `Τρίτη ηλικία`. Semantic phrase intent ώστε το `ηλικία` να μην ανοίγει child-age false positives. |
-| **A4 — Token / Sub-token Safety** | **NOT STARTED** | Κύριο case: `εικαστικά`; αποτροπή collision `εικαστικά → δικαστική` με generic token/word-boundary safety. |
+| **A3 — Phrase Intent Engine** | **PASS / CLOSED** | Curated governed `phrase_intents` στο lexicon. Το `Τρίτη ηλικία` λειτουργεί ως semantic unit, suppresses loose constituent-token leakage, υποστηρίζει curated inflected phrase variants (`Τρίτης ηλικίας`), preserves exact/strong phrase ranking και fail-closes duplicate phrase ownership. Dedicated tests **8/8 PASS**, full regression **225/225 PASS**, actual ranking PASS, performance PASS, local browser PASS. |
+| **A4 — Token / Sub-token Safety** | **NOT STARTED — NEXT** | Κύριο cases: `εικαστικά → δικαστική` και το A3-discovered collision `άνοια → ανια → δάνεια`. Στόχος: generic token/word-boundary/sub-token safety χωρίς να χαθούν legitimate inflection/root matches. |
 | **A5 — Multi-term Relevance & Term Importance** | **NOT STARTED** | Κύριο case: `ειδικός απορριμάτων`; ο discriminating όρος `απορριμάτων` πρέπει να υπερισχύει του generic `ειδικός`. |
 | **A6 — Relevance-safe Price Sorting** | **NOT STARTED** | Query → relevance-qualified candidate set → price sorting. Η τιμή δεν επιτρέπεται να εισάγει άσχετα programs. |
 | **A7 — Official Related Programs** | **DESIGN LOCKED / IMPLEMENTATION NOT STARTED** | Official CMS/program page → preserve official order → active/existing only → max 8 → display exactly those → **no fallback scorer**. |
@@ -318,7 +318,7 @@ R5    Πηγή feed IT                            ⬜ (αναμονή Γιάνν
 | **A13 — testing.elearningekpa.gr / GTM Browser Validation** | **NOT STARTED** | Μετά το A12. Δεν αλλάζουμε GTM αν δεν χρειάζεται. |
 | **A14 — Documentation / IT Handoff** | **NOT STARTED** | Τελικό gate μετά από πλήρες PASS. |
 
-**Άμεσο επόμενο βήμα:** **A3.0 — Current-behavior audit για `Τρίτη ηλικία`**, χωρίς αλλαγή κώδικα ή dataset. Μετά: A3.1 acceptance contract → A3.2 generic design → implementation → dedicated tests → full regression → performance → browser validation.
+**Άμεσο επόμενο βήμα:** **A4.0 — Current-behavior audit για token/sub-token collisions**, αρχικά `εικαστικά → δικαστική` και `άνοια → ανια → δάνεια`, χωρίς αλλαγή κώδικα ή dataset. Μετά: A4.1 acceptance contract → A4.2 generic design → implementation → dedicated tests → full regression → performance → browser validation.
 
 ### Phase 2 — v1.5B: Concept Governance
 
@@ -337,3 +337,49 @@ R5    Πηγή feed IT                            ⬜ (αναμονή Γιάνν
 Συμφωνημένη κατεύθυνση: `GET /api/programs` με όλα τα programs, active/application status, price, description, categories, FAQ, lessons, official related programs, `updated_at`, monthly automatic sync και manual sync on demand. Υπάρχουν contract examples για **KPIs and HR Management using Artificial Intelligence** και **Ειδική Αγωγή**. Η ενσωμάτωση περιμένει πραγματικό endpoint από IT και δεν μπλοκάρει το A3–A14.
 
 **Governance rule:** σε κάθε gate ενημερώνεται αυτό το ledger με status, ακριβή αλλαγή, validation evidence, architecture/scope impact και αμέσως επόμενο βήμα.
+
+
+## 2026-10-08 — A3 Phrase Intent Engine: Local Closure
+
+**Status:** **PASS / CLOSED (LOCAL)**
+
+**Implemented**
+- Προστέθηκε governed top-level lexicon collection `phrase_intents`.
+- Προστέθηκε runtime table `PHRASE_INTENTS` με snapshot/apply/reset integration.
+- Προστέθηκε `resolvePhraseIntent()` με exact normalized curated matching.
+- Το `expandQueryDetailed()` αντιμετωπίζει registered phrase intent ως ενιαία semantic μονάδα και δεν αφήνει τα constituent words να λειτουργούν ως ανεξάρτητα loose relevance terms.
+- Τα curated phrase variants συμμετέχουν στο υπάρχον raw scoring, χωρίς νέο arbitrary scoring constant.
+- Προστέθηκε compiler validation για duplicate phrase ownership: η ίδια normalized phrase δεν επιτρέπεται να ανήκει σε δύο διαφορετικά intents.
+- Πρώτο governed intent:
+  - `Τρίτη ηλικία`
+  - `Τρίτης ηλικίας`
+  - semantic terms: `Τρίτη ηλικία`, `Τρίτης ηλικίας`, `άνοια`, `Alzheimer`.
+
+**Validation evidence**
+- Dedicated A3 tests: **8/8 PASS**.
+- Full regression: **225/225 PASS**.
+- Protected baseline rankings: **PASS / no drift**.
+- Actual local ranking για `Τρίτη ηλικία`:
+  1. `Άθληση και Σωματική Άσκηση σε Άτομα Τρίτης Ηλικίας` — score 174.
+  2. `Νόσος Alzheimer και Συναφείς Άνοιες: Παθολογία της Τρίτης Ηλικίας` — score 170.
+  3. `Άνοια: Πρόληψη, Διάγνωση και Αντιμετώπιση` — score 49.
+- Child-age false positives που προέρχονταν μόνο από το loose `ηλικία` αφαιρέθηκαν.
+- Warm-cache benchmark:
+  - `Τρίτη ηλικία` median ~0.011 ms, p95 ~0.014 ms.
+- Uncached benchmark:
+  - `Τρίτη ηλικία` median ~9.084 ms, p95 ~9.618 ms.
+  - comparison `αθλητική ψυχολογία` median ~12.576 ms, p95 ~13.316 ms.
+- Local browser validation: **PASS** μετά backend restart/hard refresh.
+
+**Known issue discovered during A3**
+- `άνοια` folds to `ανια`, το οποίο μπορεί να κάνει unsafe sub-token match με `δάνεια`, παράγοντας irrelevant NPL result.
+- Δεν διορθώθηκε μέσα στο A3, επειδή ανήκει στο canonical scope του **A4 — Token / Sub-token Safety**.
+- Το A4 πρέπει να λύσει το collision generic, μαζί με το ήδη-known `εικαστικά → δικαστική`, χωρίς να χαλάσει legitimate root/inflection matching.
+
+**Architecture / scope impact**
+- Δεν άλλαξε το search API contract.
+- Δεν εισήχθη automatic phrase inference ή hardcoded `if (query === ...)`.
+- Τα phrase intents παραμένουν explicit governed lexicon data.
+- A1 concatenated queries και A2 curated aliases παραμένουν προστατευμένα και PASS.
+
+**Next gate:** **A4 — Token / Sub-token Safety**.

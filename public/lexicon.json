@@ -185,5 +185,20 @@
       "alias": "hrm",
       "canonical": "human resources"
     }
+  ],
+  "phrase_intents": [
+    {
+      "id": "third_age",
+      "phrases": [
+        "Τρίτη ηλικία",
+        "Τρίτης ηλικίας"
+      ],
+      "terms": [
+        "Τρίτη ηλικία",
+        "Τρίτης ηλικίας",
+        "άνοια",
+        "Alzheimer"
+      ]
+    }
   ]
 }
