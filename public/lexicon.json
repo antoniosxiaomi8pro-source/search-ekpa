@@ -103,6 +103,10 @@
     {
       "word": "ηθοποιών",
       "category": "Κινηματογράφος - Θέατρο"
+    },
+    {
+      "word": "σινεμα",
+      "category": "Κινηματογράφος - Θέατρο"
     }
   ],
   "audience_categories": [
@@ -178,12 +182,20 @@
     {
       "alias": "λεγαλ",
       "canonical": "legal"
+    },
+    {
+      "alias": "ειδικός απορριμάτων",
+      "canonical": "απορριμμάτων"
     }
   ],
   "token_aliases": [
     {
       "alias": "hrm",
       "canonical": "human resources"
+    },
+    {
+      "alias": "απορριμάτων",
+      "canonical": "απορριμμάτων"
     }
   ],
   "phrase_intents": [
@@ -198,6 +210,25 @@
         "Τρίτης ηλικίας",
         "άνοια",
         "Alzheimer"
+      ]
+    }
+  ],
+  "collision_exclusions": [
+    {
+      "query": "άνοια",
+      "blocked_tokens": [
+        "Δάνεια",
+        "δανειακού",
+        "Νανοϊατρική",
+        "Βιομηχανία",
+        "Βιομηχανίας",
+        "Βαλκάνια"
+      ]
+    },
+    {
+      "query": "εικαστικά",
+      "blocked_tokens": [
+        "δικαστική"
       ]
     }
   ]

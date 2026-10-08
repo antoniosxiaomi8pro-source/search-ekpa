@@ -144,6 +144,11 @@
   // A phrase intent activates only when one of its registered phrases matches.
   const PHRASE_INTENTS = {};
 
+  // Explicit query-specific lexical collision exclusions loaded from lexicon.json.
+  // These do not hide programs; they only prevent known unrelated tokens from
+  // creating relevance for the registered query through substring/fuzzy collisions.
+  const COLLISION_EXCLUSIONS = {};
+
   function resolvePhraseIntent(query) {
     const normalized = foldGreek(normalize(String(query || "")));
     if (!normalized) return null;
@@ -603,22 +608,64 @@
   // on its own.
   const COVERAGE_BONUS_PER_EXTRA_CONCEPT = 70;
 
-  function scoreEntry(e, variants, terms, byWord) {
+  function collisionExclusionsFor(query) {
+    const key = foldGreek(normalize(String(query || "")));
+    const blocked = COLLISION_EXCLUSIONS[key];
+    return blocked && blocked.length ? new Set(blocked) : null;
+  }
+
+  function rawContainsSafe(text, tokenSet, raw, blockedTokens) {
+    if (!blockedTokens || !blockedTokens.size || raw.includes(" ")) {
+      return rawContains(text, tokenSet, raw);
+    }
+
+    if (raw.length <= SHORT_RAW_MAX) {
+      for (const tok of tokenSet) {
+        if (blockedTokens.has(tok)) continue;
+        if (tok.startsWith(raw)) return true;
+      }
+      return false;
+    }
+
+    for (const tok of tokenSet) {
+      if (blockedTokens.has(tok)) continue;
+      if (tok.includes(raw)) return true;
+    }
+    return false;
+  }
+
+  function containsTermSafe(textAll, tokenSet, term, blockedTokens) {
+    if (!blockedTokens || !blockedTokens.size || term.includes(" ")) {
+      return containsTerm(textAll, tokenSet, term);
+    }
+
+    if (term.length <= 3) {
+      return tokenSet.has(term) && !blockedTokens.has(term);
+    }
+
+    for (const tok of tokenSet) {
+      if (blockedTokens.has(tok)) continue;
+      if (tok.includes(term) && term.length / tok.length >= MIN_TERM_TOKEN_OVERLAP) return true;
+    }
+    return false;
+  }
+
+  function scoreEntry(e, variants, terms, byWord, blockedTokens) {
     let s = 0;
     variants.forEach((raw) => {
       if (e.title === raw) s += 200;
-      if (rawContains(e.title, e.titleTok, raw)) s += 100;
-      if (rawContains(e.tags, e.tagsTok, raw)) s += 90;
-      if (rawContains(e.primaryArea, e.primaryAreaTok, raw)) s += 45; // official primary category - strong signal
-      else if (rawContains(e.area, e.areaTok, raw)) s += 15; // only among secondary categories - weaker signal
-      if (rawContains(e.all, e.allTok, raw)) s += 25;
+      if (rawContainsSafe(e.title, e.titleTok, raw, blockedTokens)) s += 100;
+      if (rawContainsSafe(e.tags, e.tagsTok, raw, blockedTokens)) s += 90;
+      if (rawContainsSafe(e.primaryArea, e.primaryAreaTok, raw, blockedTokens)) s += 45; // official primary category - strong signal
+      else if (rawContainsSafe(e.area, e.areaTok, raw, blockedTokens)) s += 15; // only among secondary categories - weaker signal
+      if (rawContainsSafe(e.all, e.allTok, raw, blockedTokens)) s += 25;
     });
     terms.forEach((t) => {
-      if (containsTerm(e.title, e.titleTok, t)) s += 18;
-      if (containsTerm(e.tags, e.tagsTok, t)) s += 15;
-      if (containsTerm(e.primaryArea, e.primaryAreaTok, t)) s += 8;
-      else if (containsTerm(e.area, e.areaTok, t)) s += 3;
-      if (containsTerm(e.all, e.allTok, t)) s += 3;
+      if (containsTermSafe(e.title, e.titleTok, t, blockedTokens)) s += 18;
+      if (containsTermSafe(e.tags, e.tagsTok, t, blockedTokens)) s += 15;
+      if (containsTermSafe(e.primaryArea, e.primaryAreaTok, t, blockedTokens)) s += 8;
+      else if (containsTermSafe(e.area, e.areaTok, t, blockedTokens)) s += 3;
+      if (containsTermSafe(e.all, e.allTok, t, blockedTokens)) s += 3;
     });
     // Coverage bonus: only evaluated for queries with 2+ distinct meaningful words —
     // a single-word/single-concept query never reaches this block with a nonzero
@@ -638,8 +685,10 @@
         let covered = 0;
         words.forEach((w) => {
           const hit = byWord[w].some((t) =>
-            containsTerm(e.title, e.titleTok, t) || containsTerm(e.tags, e.tagsTok, t) ||
-            containsTerm(e.primaryArea, e.primaryAreaTok, t) || containsTerm(e.area, e.areaTok, t)
+            containsTermSafe(e.title, e.titleTok, t, blockedTokens) ||
+            containsTermSafe(e.tags, e.tagsTok, t, blockedTokens) ||
+            containsTermSafe(e.primaryArea, e.primaryAreaTok, t, blockedTokens) ||
+            containsTermSafe(e.area, e.areaTok, t, blockedTokens)
           );
           if (hit) covered++;
         });
@@ -653,7 +702,8 @@
   // only for ad-hoc use/tests; search()/rank() use the precomputed index.
   function score(p, q, CONCEPTS, vocab) {
     const { termsFlat: terms, byWord } = expandQueryDetailed(q, CONCEPTS, vocab);
-    return scoreEntry(buildEntry(p), queryVariants(q), terms, byWord);
+    const blockedTokens = collisionExclusionsFor(q);
+    return scoreEntry(buildEntry(p), queryVariants(q), terms, byWord, blockedTokens);
   }
 
   // ==========================================================================
@@ -695,6 +745,7 @@
     "\u03b9\u03b8\u03bf\u03c0\u03b9\u03bf\u03b9\u03c2": "\u039a\u03b9\u03bd\u03b7\u03bc\u03b1\u03c4\u03bf\u03b3\u03c1\u03ac\u03c6\u03bf\u03c2\u0020\u002d\u0020\u0398\u03ad\u03b1\u03c4\u03c1\u03bf", // verified: \u03b7\u03b8\u03bf\u03c0\u03bf\u03b9\u03bf\u03cd\u03c2 -> official Kinimatografos-Theatro category (Checkpoint B audit)
     "\u03b9\u03b8\u03bf\u03c0\u03b9\u03bf\u03b9": "\u039a\u03b9\u03bd\u03b7\u03bc\u03b1\u03c4\u03bf\u03b3\u03c1\u03ac\u03c6\u03bf\u03c2\u0020\u002d\u0020\u0398\u03ad\u03b1\u03c4\u03c1\u03bf", // verified: \u03b7\u03b8\u03bf\u03c0\u03bf\u03b9\u03bf\u03cd -> official Kinimatografos-Theatro category (Checkpoint B audit)
     "\u03b9\u03b8\u03bf\u03c0\u03b9\u03bf\u03bd": "\u039a\u03b9\u03bd\u03b7\u03bc\u03b1\u03c4\u03bf\u03b3\u03c1\u03ac\u03c6\u03bf\u03c2\u0020\u002d\u0020\u0398\u03ad\u03b1\u03c4\u03c1\u03bf", // verified: \u03b7\u03b8\u03bf\u03c0\u03bf\u03b9\u03ce\u03bd -> official Kinimatografos-Theatro category (Checkpoint B audit)
+    "σινεμα": "Κινηματογράφος - Θέατρο", // A8 feedback: cinema synonym -> official category
   };
   // Latin-script acronyms embedded in an official category's ORIGINAL (pre-fold)
   // text, e.g. category "(AI)" suffix -> "ai". Extracted before normalize/fold
@@ -790,6 +841,12 @@
   function resolveCategoryIntent(programs, query) {
     const categoryIndex = getCategoryIndex(programs);
     if (!categoryIndex.categories.length) return null;
+
+    // Exact full-category names are authoritative even when their individual
+    // words are shared with broader/nested official category names.
+    const exact = foldGreek(normalize(query));
+    const exactCategory = categoryIndex.categories.find((cat) => cat.folded === exact);
+    if (exactCategory) return exactCategory.name;
     for (const variant of queryVariants(query)) {
       const words = variant.split(" ").filter((w) => w.length >= 2 && !STOPWORDS.has(w));
       if (!words.length) continue;
@@ -1173,6 +1230,7 @@
       queryAliases: cloneJson(QUERY_ALIASES),
       tokenAliases: cloneJson(TOKEN_ALIASES),
       phraseIntents: cloneJson(PHRASE_INTENTS),
+      collisionExclusions: cloneJson(COLLISION_EXCLUSIONS),
       scan,
     };
   }
@@ -1190,6 +1248,7 @@
     replaceContents(QUERY_ALIASES, t.queryAliases);
     replaceContents(TOKEN_ALIASES, t.tokenAliases);
     replaceContents(PHRASE_INTENTS, t.phraseIntents);
+    replaceContents(COLLISION_EXCLUSIONS, t.collisionExclusions);
     Object.keys(AUDIENCE_SCAN_REGEX).forEach((k) => delete AUDIENCE_SCAN_REGEX[k]);
     Object.keys(t.scan).forEach((id) => { const re = buildScanRegex(t.scan[id]); if (re) AUDIENCE_SCAN_REGEX[id] = re; });
     indexCache = new WeakMap();
@@ -1221,7 +1280,7 @@
     };
     const id = (g, where) => { if (!g || typeof g.id !== "string" || !/^[a-z0-9_-]{1,40}$/.test(g.id)) fail("άκυρο id στο " + where + "."); return g.id; };
 
-    const t = { stopwords: new Set(), category: {}, audienceMulti: {}, audienceSets: {}, audienceAliases: {}, topicSets: {}, topicAliases: {}, queryAliases: {}, tokenAliases: {}, phraseIntents: {}, scan: {} };
+    const t = { stopwords: new Set(), category: {}, audienceMulti: {}, audienceSets: {}, audienceAliases: {}, topicSets: {}, topicAliases: {}, queryAliases: {}, tokenAliases: {}, phraseIntents: {}, collisionExclusions: {}, scan: {} };
     const owner = {}; // folded word -> which table owns it
     const claim = (f, table, original) => {
       if (owner[f] && owner[f] !== table) fail("η λέξη «" + original + "» υπάρχει και στο «" + owner[f] + "» και στο «" + table + "».");
@@ -1347,6 +1406,34 @@
       t.phraseIntents[gid] = { id: gid, phrases, terms };
     });
 
+    const collisionExclusions = lex.collision_exclusions === undefined ? [] : lex.collision_exclusions;
+    if (!Array.isArray(collisionExclusions)) fail("το collision_exclusions δεν είναι λίστα.");
+
+    collisionExclusions.forEach((e) => {
+      if (!e || typeof e !== "object" || Array.isArray(e)) {
+        fail("άκυρη εγγραφή στο collision_exclusions.");
+      }
+
+      const query = word(e.query, "collision_exclusions.query");
+      const blocked = strings(
+        e.blocked_tokens,
+        "collision_exclusions.blocked_tokens",
+        100
+      ).map((token) => {
+        const f = foldWord(token);
+        if (!f || f.includes(" ")) {
+          fail("το collision_exclusions.blocked_tokens πρέπει να περιέχει single tokens.");
+        }
+        return f;
+      });
+
+      if (t.collisionExclusions[query]) {
+        fail("διπλό query «" + e.query + "» στο collision_exclusions.");
+      }
+
+      t.collisionExclusions[query] = Array.from(new Set(blocked));
+    });
+
     // A word that is both a stopword and an alias could never act as an alias (stopwords are dropped first).
     Object.keys(owner).forEach((f) => {
       if (owner[f] !== "stopwords" && t.stopwords.has(f)) fail("η λέξη «" + f + "» είναι και stopword και λέξη αντιστοίχισης.");
@@ -1366,6 +1453,7 @@
       query_aliases: Object.keys(t.queryAliases).length,
       token_aliases: Object.keys(t.tokenAliases).length,
       phrase_intents: Object.keys(t.phraseIntents).length,
+      collision_exclusions: Object.keys(t.collisionExclusions).length,
     };
   }
   function resetLexicon() { applyTables(DEFAULT_TABLES); }
@@ -1529,6 +1617,15 @@
   // Full ranking of all matching programs: [{ entryIndex, s }] sorted by score desc.
   function rankAll(programs, concepts, query, skipTrustedTypoRecovery) {
     query = String(query || "").slice(0, MAX_QUERY_LENGTH);
+
+    // Exact governed whole-query aliases are canonical replacements, not
+    // additive scoring variants. Once an explicitly curated alias matches
+    // the entire normalized query, all downstream intent/scoring logic sees
+    // only its canonical query.
+    const queryAliasKey = foldGreek(normalize(query));
+    const queryAliasTarget = QUERY_ALIASES[queryAliasKey];
+    if (queryAliasTarget) query = queryAliasTarget;
+
     const tokenAliasResolution = resolveCuratedTokenAliases(query);
     if (tokenAliasResolution) query = tokenAliasResolution;
 
@@ -1555,6 +1652,8 @@
       ...(phraseIntent ? phraseIntent.phrases : [])
     ]));
     const { termsFlat: terms, byWord } = expandQueryDetailed(semanticQuery, concepts, idx.vocab);
+    const blockedTokens = collisionExclusionsFor(semanticQuery);
+
     const ranked = [];
     if (variants.length) {
       // Checkpoint A: single official category. Checkpoint B: the SAME word
@@ -1565,7 +1664,7 @@
       // (disjoint alias tables), tried in this fixed order, and every one of
       // them falls through to plain scored search below when unresolved -
       // intent resolution failing NEVER produces zero results by itself.
-      let categoryNames = resolveCategoryIntent(programs, query);
+      let categoryNames = resolveCategoryIntent(programs, semanticQuery);
       if (!categoryNames) categoryNames = resolveAudienceMultiCategoryIntent(programs, query);
       const conceptIntent = resolveSingleConceptIntent(programs, concepts, query, categoryNames, idx);
       if (categoryNames) {
@@ -1581,7 +1680,7 @@
         for (let i = 0; i < idx.entries.length; i++) {
           if (!names.some((name) => programBelongsToCategory(idx.entries[i].p, name))) continue;
           if (conceptIntent && !eligibleForConceptIntent(idx.entries[i].p, idx.entries[i], concepts, conceptIntent, variants)) continue;
-          ranked.push({ i, s: scoreEntry(idx.entries[i], variants, terms, byWord) });
+          ranked.push({ i, s: scoreEntry(idx.entries[i], variants, terms, byWord, blockedTokens) });
         }
         ranked.sort((a, b) => b.s - a.s || a.i - b.i);
       } else {
@@ -1596,7 +1695,7 @@
           const slugSet = new Set(topicSlugs);
           for (let i = 0; i < idx.entries.length; i++) {
             if (!slugSet.has(idx.entries[i].p.slug)) continue;
-            ranked.push({ i, s: scoreEntry(idx.entries[i], variants, terms, byWord) });
+            ranked.push({ i, s: scoreEntry(idx.entries[i], variants, terms, byWord, blockedTokens) });
           }
           if (audienceProgramSlugs) {
             // For audience searches, audited thematic programs remain the strongest
@@ -1615,7 +1714,7 @@
         } else {
           for (let i = 0; i < idx.entries.length; i++) {
             if (conceptIntent && !eligibleForConceptIntent(idx.entries[i].p, idx.entries[i], concepts, conceptIntent, variants)) continue;
-            const s = scoreEntry(idx.entries[i], variants, terms, byWord);
+            const s = scoreEntry(idx.entries[i], variants, terms, byWord, blockedTokens);
             if (s > 0) ranked.push({ i, s });
           }
           ranked.sort((a, b) => b.s - a.s);

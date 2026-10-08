@@ -137,7 +137,7 @@ let CONCEPTS = {};
 
 const Engine = window.EkpaSearch;
 // Programs are identified by slug (always present & unique). ~1/3 of the catalog has
-// id:null, so ids are only used to resolve similar_program_ids.
+// id:null, so ids are only used to resolve official_related_program_ids.
 const PROGRAMS_BY_ID = new Map();
 PROGRAMS.forEach(p => { if (p.id != null) PROGRAMS_BY_ID.set(p.id, p); });
 const state = {q:"",area:""};
@@ -196,7 +196,7 @@ function render(){
     const hasDesc=p.description_full&&p.description_full.length>30;
     const tags=(p.tags||[]).slice(0,10).map(t=>`<span class="tag">${esc(t)}</span>`).join("");
     const scoreBadge = state.q.trim().length>=2 ? `<span class="tag score">score ${Math.round(p._score)}</span>` : "";
-    const related=(p.similar_program_ids||[]).filter(id=>id!==p.id).map(id=>PROGRAMS_BY_ID.get(id)).filter(Boolean).slice(0,3);
+    const related=(p.official_related_program_ids||[]).filter(id=>id!==p.id).map(id=>PROGRAMS_BY_ID.get(id)).filter(Boolean).slice(0,8);
     const relatedHtml=related.length?`<div class="related"><span class="related-label">Σχετικά:</span> ${related.map(r=>`<a href="${esc(r.url)}" target="_blank" rel="noopener" data-key="${esc(r.slug)}">${esc(r.title)}</a>`).join(" &middot; ")}</div>`:"";
     const initial=esc((p.title||"?").trim().charAt(0).toUpperCase());
     const descSnippet = hasDesc

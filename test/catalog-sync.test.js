@@ -62,8 +62,8 @@ test("catalog-sync: parses the course-schedule table, dedupes, decodes entities"
 test("catalog-sync: reads price, start date and availability from Course JSON-LD", () => {
   assert.deepEqual(Sync.parseCoursePage(coursePage({ price: 900, startDate: "2026-10-19", cmsId: 34 })), {
     has_jsonld: true, unavailable: false, price: 900, start_date: "2026-10-19", application_deadline: "2026-10-09",
-    cms_id: 34, direction: "Ψυχολογία - Ψυχιατρική", title: "X", description: "Περιγραφή «X»",
-    image: "https://elearningekpa.gr/img/x.jpg",
+    cms_id: 34, direction: "Ψυχολογία - Ψυχιατρική", official_related_program_ids: [],
+    title: "X", description: "Περιγραφή «X»", image: "https://elearningekpa.gr/img/x.jpg",
   });
   const closed = Sync.parseCoursePage(coursePage({ price: 425, unavailable: true }));
   assert.equal(closed.unavailable, true);

@@ -11,6 +11,7 @@ const CONCEPTS = {
 const page = (o = {}) => ({
   http: 200, has_jsonld: true, unavailable: false, price: 500, start_date: "2026-10-19",
   application_deadline: "2026-10-09", cms_id: 900, direction: "Ψυχολογία - Ψυχιατρική",
+  official_related_program_ids: [],
   title: "Νέα Ψυχολογία", description: "Πλήρης περιγραφή.", image: "https://x/img.jpg", ...o,
 });
 const check = (cycle, pages) => ({
@@ -45,7 +46,7 @@ test("enrich: fills ONLY empty fields; complete programs keep every search field
   }
 });
 
-test("enrich: a program with gaps gets id, category, description, concepts, tags, related", () => {
+test("enrich: a program with gaps gets id, category, description, concepts and tags without generated related fallback", () => {
   const { candidate, diff } = Sync.buildCandidate(base(), check(["full", "gappy", "other"], {
     full: page({ cms_id: 1 }), gappy: page({ cms_id: 55 }), other: page({ cms_id: 2, direction: "Τουριστικά" }),
   }), { concepts: CONCEPTS });
@@ -58,7 +59,8 @@ test("enrich: a program with gaps gets id, category, description, concepts, tags
   assert.deepEqual(g.concepts, ["psychology", "tourism"]);
   assert.ok(g.tags.includes("ψυχολογια") && g.tags.includes("τουρισμος"));
   assert.equal(g.tags.filter((t) => CONCEPTS.psychology.includes(t)).length, Enrich.TAGS_PER_CONCEPT, "6 terms per concept");
-  assert.deepEqual(g.similar_program_ids, [1], "same primary category + shared concept");
+  assert.deepEqual(g.similar_program_ids, [], "A7: no generated related fallback");
+  assert.deepEqual(g.official_related_program_ids, [], "A7: empty official source stays empty");
   assert.ok(g.search_text.includes("πληρης περιγραφη"));
   assert.deepEqual(diff.gaps_filled.find((x) => x.slug === "gappy").fields.sort(),
     ["areas_of_study", "concepts", "description_for_matching", "description_full", "id", "primary_area", "tags"]);
@@ -125,7 +127,8 @@ test("enrich: a program new in the cycle is added as a complete, active record",
   assert.equal(n.price, 500);
   assert.equal(n.primary_area, "Ψυχολογία - Ψυχιατρική");
   assert.deepEqual(n.concepts, ["psychology"]);
-  assert.ok(n.similar_program_ids.includes(1));
+  assert.deepEqual(n.similar_program_ids, [], "A7: new programs do not get generated related fallback");
+  assert.deepEqual(n.official_related_program_ids, [], "A7: official related remains empty when the page provides none");
   for (const f of ["slug", "title", "url", "image_url", "description_full", "tags", "search_text"]) assert.ok(!Enrich.isEmpty(n[f]), f);
   assert.equal(summary.new_added, 1);
   assert.equal(diff.new_added[0].slug, "brand-new");

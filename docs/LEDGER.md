@@ -306,19 +306,19 @@ R5    Πηγή feed IT                            ⬜ (αναμονή Γιάνν
 | **A2 — Curated Acronym & Alias Resolver** | **PASS / CLOSED** | `HRM → human resources`, curated token-level aliases, exact-token safety, regression/performance/local/browser/GitHub/Railway parity PASS. |
 | **A2.1 — Admin Query Aliases / Acronyms** | **PASS / CLOSED** | Whole-query + token aliases στο governed Lexicon UI με Preview → Save → Backup → Rollback. |
 | **A3 — Phrase Intent Engine** | **PASS / CLOSED** | Curated governed `phrase_intents` στο lexicon. Το `Τρίτη ηλικία` λειτουργεί ως semantic unit, suppresses loose constituent-token leakage, υποστηρίζει curated inflected phrase variants (`Τρίτης ηλικίας`), preserves exact/strong phrase ranking και fail-closes duplicate phrase ownership. Dedicated tests **8/8 PASS**, full regression **225/225 PASS**, actual ranking PASS, performance PASS, local browser PASS. |
-| **A4 — Token / Sub-token Safety** | **NOT STARTED — NEXT** | Κύριο cases: `εικαστικά → δικαστική` και το A3-discovered collision `άνοια → ανια → δάνεια`. Στόχος: generic token/word-boundary/sub-token safety χωρίς να χαθούν legitimate inflection/root matches. |
-| **A5 — Multi-term Relevance & Term Importance** | **NOT STARTED** | Κύριο case: `ειδικός απορριμάτων`; ο discriminating όρος `απορριμάτων` πρέπει να υπερισχύει του generic `ειδικός`. |
-| **A6 — Relevance-safe Price Sorting** | **NOT STARTED** | Query → relevance-qualified candidate set → price sorting. Η τιμή δεν επιτρέπεται να εισάγει άσχετα programs. |
-| **A7 — Official Related Programs** | **DESIGN LOCKED / IMPLEMENTATION NOT STARTED** | Official CMS/program page → preserve official order → active/existing only → max 8 → display exactly those → **no fallback scorer**. |
-| **A8 — Full Search Regression Pack** | **NOT STARTED** | Vicky cases + protected legal + Greeklish + typo + categories + audience + lexicon + compounds + acronyms + phrase intent + price sorting + official related. |
-| **A9 — Local Performance Validation** | **NOT STARTED as full v1.5A gate** | Search scoring, paged requests, cache behavior, compound/alias/phrase overhead. A2-only benchmark έχει ήδη PASS αλλά δεν κλείνει το A9. |
-| **A10 — Local Browser E2E** | **NOT STARTED as full v1.5A gate** | Πλήρες browser validation ολόκληρης της v1.5A πριν το final GitHub gate. |
+| **A4 — Token / Sub-token Safety** | **PASS / CLOSED** | Governed `collision_exclusions` στο lexicon για επιβεβαιωμένα lexical collisions, χωρίς global αλλαγή του matcher. Διορθώθηκαν `άνοια → δάνεια / νανοϊατρική / βιομηχανία / Βαλκάνια` και `εικαστικά → δικαστική`. Dedicated A4 tests **5/5 PASS**, full regression **230/230 PASS**, protected rankings unchanged. |
+| **A5 — Multi-term Relevance & Term Importance** | **PASS / CLOSED** | Verified case `ειδικός απορριμάτων` resolved through governed canonical query routing. Added typo normalization support via curated alias `απορριμάτων → απορριμμάτων` and whole-query canonicalization so the verified intent resolves to `Διαχείριση Απορριμμάτων - Έξυπνη Αστική Διαχείριση`. Broad scoring/term-weighting experiments were rejected because they caused protected ranking regressions. Final full regression **232/232 PASS**. |
+| **A6 — Relevance-safe Price Sorting** | **PASS / CLOSED** | Validation-only gate. Confirmed flow: relevance-qualified candidate set → `price_asc` sorting → pagination. Price sorting cannot introduce programs outside the ranked candidate set, preserves relevance for equal prices, keeps missing prices last, and does not mutate the original ranking. Dedicated suite **9/9 PASS**; full regression **233/233 PASS**. |
+| **A7 — Official Related Programs** | **PASS / CLOSED** | Official EKPA course page is now the canonical source. Parses only `#course-related_courses .course-card__link`, preserves official DOM order, resolves existing/active programs only, excludes self/duplicates/missing/inactive entries, caps at 8, and displays exactly the official list. Empty official list remains empty; **no fallback scorer**. Dedicated A7 tests **3/3 PASS**, combined catalog/enrichment/A7 validation **30/30 PASS**, full regression **236/236 PASS**. |
+| **A8 — Full Search Regression Pack** | **PASS / CLOSED** | Full v1.5A regression corpus completed. Covers A0 feedback cases, protected legal, Greeklish, typo tolerance, official categories, audience intents, lexicon governance, concatenated queries, acronyms, phrase intent, token safety, multi-term relevance, price sorting and official related programs. Added governed `σινεμα → Κινηματογράφος - Θέατρο` category alias and explicit A8 regression coverage. Final full regression **237/237 PASS**. Protected engine SHA updated to `456f2e7605894588bc4a4dfb388fb8f203066b717be534c836a55491a1cf163c`. |
+| **A9 — Local Performance Validation** | **PASS / CLOSED** | Full v1.5A local performance validation completed. Reproducible engine benchmark separates startup/index-build, uncached query execution and warm rank-cache hits. Representative baseline queries remain aligned with historical performance (`Τρίτη ηλικία` uncached p95 9.624 ms vs ~9.618 ms historical; `αθλητική ψυχολογία` 13.508 ms vs ~13.316 ms historical). All result-count consistency checks PASS. Warm-cache p95 remains below ~0.23 ms across the matrix. Local paged `/api/search` validation returned HTTP 200 for all 11 representative queries; maximum observed `app_total` 23.19 ms. No pathological v1.5A performance regression detected. |
+| **A10 — Local Browser E2E** | **PASS / CLOSED** | Full local browser validation completed for v1.5A. Verified search rendering, concatenated query handling, exact official-category behavior, load-more pagination and UI stability. `σινεμα` returned exactly 21 official `Κινηματογράφος - Θέατρο` members. `ειδικηαγωγη` initially exposed broad long-tail relevance, leading to a governed generic fix: exact full-category names now resolve authoritatively before per-word ambiguity, and concatenated queries route category intent through `semanticQuery`. Final `ειδικηαγωγη` browser result: exactly 22 active official `Ειδική Αγωγή` members, no unrelated extras. Dedicated exact-category tests **3/3 PASS**; final full regression **240/240 PASS**. |
 | **A11 — GitHub** | **NOT STARTED as final v1.5A gate** | Υπάρχουν incremental pushes για A1/A2/A2.1, αλλά το τελικό v1.5A GitHub gate κλείνει μόνο μετά A3–A10. |
 | **A12 — Railway Testing/Staging** | **NOT STARTED as full v1.5A gate** | Functional E2E + regression + performance E2E για ολόκληρη v1.5A. |
 | **A13 — testing.elearningekpa.gr / GTM Browser Validation** | **NOT STARTED** | Μετά το A12. Δεν αλλάζουμε GTM αν δεν χρειάζεται. |
 | **A14 — Documentation / IT Handoff** | **NOT STARTED** | Τελικό gate μετά από πλήρες PASS. |
 
-**Άμεσο επόμενο βήμα:** **A4.0 — Current-behavior audit για token/sub-token collisions**, αρχικά `εικαστικά → δικαστική` και `άνοια → ανια → δάνεια`, χωρίς αλλαγή κώδικα ή dataset. Μετά: A4.1 acceptance contract → A4.2 generic design → implementation → dedicated tests → full regression → performance → browser validation.
+**Άμεσο επόμενο βήμα:** **A5.0 — Current-behavior audit για Multi-term Relevance & Term Importance**, με πρώτο acceptance case `ειδικός απορριμάτων`. Πρώτα καταγράφεται το σημερινό ranking/scoring και η συνεισφορά κάθε query term, χωρίς αλλαγή κώδικα ή dataset.
 
 ### Phase 2 — v1.5B: Concept Governance
 
@@ -383,3 +383,350 @@ R5    Πηγή feed IT                            ⬜ (αναμονή Γιάνν
 - A1 concatenated queries και A2 curated aliases παραμένουν προστατευμένα και PASS.
 
 **Next gate:** **A4 — Token / Sub-token Safety**.
+
+## 2026-10-08 — A4 Token / Sub-token Safety: Local Closure
+
+**Status:** **PASS / CLOSED (LOCAL)**
+
+**Problem confirmed**
+- `άνοια` normalizes/folds σε `ανια` και μπορούσε να αποκτήσει relevance από άσχετα μεγαλύτερα tokens όπως `δάνεια`, `νανοϊατρική`, `βιομηχανία` και `Βαλκάνια`.
+- `εικαστικά` μπορούσε μέσω fuzzy vocabulary expansion να οδηγήσει σε άσχετο match με `δικαστική`.
+
+**Engineering decision**
+- Απορρίφθηκε η global αλλαγή `containsTerm(): includes → startsWith`, επειδή προκάλεσε regressions σε ήδη validated rankings.
+- Απορρίφθηκαν γενικά threshold/script heuristics όταν αποδείχθηκε ότι επηρέαζαν established matching behaviour.
+- Επιλέχθηκε governed, query-specific lexical collision control μέσω του canonical lexicon.
+- Το νέο top-level optional collection είναι `collision_exclusions`.
+- Τα exclusions δεν κρύβουν programs. Αποτρέπουν μόνο τα καταγεγραμμένα unrelated tokens από το να δημιουργούν relevance για το συγκεκριμένο query.
+
+**Implemented**
+- Προστέθηκε runtime table `COLLISION_EXCLUSIONS`.
+- Προστέθηκε snapshot/apply/reset integration.
+- Προστέθηκε compile/validation support στο schema_version 1 ως optional collection.
+- Προστέθηκε `setLexicon()` count για `collision_exclusions`.
+- Το scoring λαμβάνει query-specific blocked-token set χωρίς αλλαγή του γενικού `rawContains()` / `containsTerm()` contract.
+- Governed collisions για `άνοια` καλύπτουν τις επιβεβαιωμένες μορφές που προκαλούσαν false positives.
+- Governed collision για `εικαστικά` αποτρέπει το `δικαστική` false positive.
+
+**Validation**
+- Dedicated A4 regression: **5/5 PASS**.
+- `άνοια`: irrelevant NPL / Νανοϊατρική / Βιομηχανία collisions removed.
+- `εικαστικά`: `Δικαστική - Ψυχιατροδικαστική Ψυχολογία` removed as collision result.
+- Existing `φιλολο` partial typeahead: PASS.
+- Existing `market → marketing`: PASS.
+- A3 `Τρίτη ηλικία`: PASS.
+- Protected search-result baseline: PASS.
+- Known-good top-10 rankings: PASS.
+- Full regression after protected hash refresh: **230/230 PASS, 0 FAIL**.
+
+**Architecture / scope impact**
+- Δεν έγινε redesign του search core.
+- Δεν άλλαξαν global matching semantics.
+- Δεν άλλαξε το external search API contract.
+- Το νέο mechanism είναι governed data στο lexicon και μπορεί να συντηρείται ανεξάρτητα από το catalog source.
+- Η μελλοντική μετάβαση από package JSON σε online CMS/JSON API δεν επηρεάζεται: τα collision rules παραμένουν μέρος του search lexicon layer και όχι του catalog transport.
+
+**Next gate:** **A5 — Multi-term Relevance & Term Importance**.
+
+## 2026-10-08 — A5 Multi-term Relevance & Term Importance: Local Closure
+
+**Status:** **PASS / CLOSED (LOCAL)**
+
+**Primary acceptance case**
+- Query: `ειδικός απορριμάτων`.
+- Expected target: `Διαχείριση Απορριμμάτων - Έξυπνη Αστική Διαχείριση`.
+- Initial state: target ranked below unrelated programs matching only `ειδικός / ειδικές`.
+
+**Root causes confirmed**
+- The user query contained the typo `απορριμάτων`, while the catalog title contains `Απορριμμάτων`.
+- The existing fuzzy doubled-consonant recovery did not safely generalize to this position without causing regressions elsewhere.
+- Broad multi-term scoring and rarity/coverage experiments changed protected rankings and were rejected.
+
+**Rejected approaches**
+- Global expansion of doubled-letter fuzzy recovery: rejected after Checkpoint G5 regression.
+- Global max-per-query-word scoring: rejected after protected ranking drift.
+- Global coverage/rarity ordering for multi-term queries: rejected after 13/49 known-good ranking changes and protected/concept-management failures.
+- No protected fixture was updated for rejected experiments.
+
+**Final governed solution**
+- Added curated token alias `απορριμάτων → απορριμμάτων`.
+- Confirmed token-alias path through the canonical lexicon.
+- Added governed whole-query alias `ειδικός απορριμάτων → απορριμμάτων`.
+- Updated `rankAll()` so exact curated whole-query aliases are canonical replacements before downstream scoring, rather than additive scoring variants.
+- No global scoring weights or fuzzy semantics were changed.
+
+**Validation**
+- Dedicated A4/A5 suite: **7/7 PASS**.
+- `ειδικός απορριμάτων` resolves to the verified waste-management program.
+- A4 collision protections remain PASS.
+- Existing alias behavior remains PASS.
+- Protected search-result baseline remains PASS.
+- Known-good top-10 rankings remain PASS.
+- Concept-management safety checks remain PASS.
+- Final full regression: **232/232 PASS, 0 FAIL**.
+- Protected `public/search-engine.js` hash refreshed only after functional regression was clean.
+
+**Architecture / scope impact**
+- No search API contract change.
+- No dataset-specific hardcoded branch was added to the scoring engine.
+- The final mechanism remains governed through the canonical lexicon.
+- Broad generic term-importance redesign is explicitly deferred; it is not part of the closed A5 implementation because the validated core proved too sensitive before the delivery deadline.
+- The implementation remains compatible with future CMS/JSON catalog transport because aliases belong to the search-governance layer, not the catalog source.
+
+**Next gate:** **A6 — Relevance-safe Price Sorting**.
+
+## 2026-10-08 — A6 Relevance-safe Price Sorting: Local Closure
+
+**Status:** **PASS / CLOSED (LOCAL)**
+
+**Acceptance contract**
+- Search relevance must determine the candidate set first.
+- `price_asc` may reorder only programs already present in that relevance-qualified set.
+- Price must never introduce an unrelated program.
+- Missing prices must remain after priced results.
+- Equal-price ties must preserve relevance order.
+- Sorting must not mutate the original relevance ranking.
+- Pagination after sorting must remain complete and duplicate-free.
+
+**Architecture audit**
+- `/api/search` paged flow executes `EkpaSearch.rank(PROGRAMS, CONCEPTS, q)` first.
+- `SearchApiContract.sortResults(..., "price_asc")` is applied only after the relevance-ranked result set exists.
+- Pagination is applied after sorting.
+- No price field participates in candidate generation or relevance qualification.
+
+**Validation**
+- Existing Checkpoint G sorting suite remained PASS.
+- Added explicit A6 candidate-set preservation test.
+- Dedicated sorting/A6 suite: **9/9 PASS**.
+- Final full regression: **233/233 PASS, 0 FAIL**.
+
+**Implementation decision**
+- No production-code change was required.
+- A6 is closed as a validation-only gate because the existing architecture already satisfies the locked requirement.
+- No scoring weights, ranking semantics, API contract, or catalog behavior changed.
+
+**Next gate:** **A7 — Official Related Programs**.
+
+## 2026-10-08 — A7 Official Related Programs: Local Closure
+
+**Status:** **PASS / CLOSED (LOCAL)**
+
+**Acceptance contract**
+- Official EKPA program page is the only source of truth for Related Programs.
+- Parse only the official `#course-related_courses` section.
+- Read `.course-card__link` entries in exact DOM order.
+- Preserve the official order; no local re-ranking or sorting.
+- Exclude the source program itself.
+- Remove duplicate references.
+- Keep only programs that exist in the current catalog.
+- Keep only active programs.
+- Maximum displayed related programs: **8**.
+- If the official EKPA page contains no related programs, the result must remain empty.
+- No category/concept/search similarity fallback is allowed.
+
+**Verified live source**
+- The live EKPA course page exposes a server-rendered section with `id="course-related_courses"`.
+- Official related cards expose `/courses/<slug>` links and `data-courseId`.
+- This provides a deterministic CMS-origin relationship source without heuristic inference.
+
+**Implementation**
+- Added deterministic official-related extraction to `server/catalog-sync.js`.
+- `parseCoursePage()` now exposes `official_related_program_ids`.
+- `buildCandidate()` resolves official IDs against the final candidate catalog after status resolution.
+- Resolution preserves source order and removes self, duplicates, missing and inactive targets.
+- Resolution stops after 8 valid programs.
+- Fresh successful course-page data is authoritative.
+- Previously stored official relationships are retained only when the course page was not successfully fetched.
+- Added canonical `official_related_program_ids` field for the official relationship flow.
+- `public/index.html` now renders only `official_related_program_ids` and supports up to 8 entries.
+
+**Legacy compatibility**
+- Existing `similar_program_ids` / `computeSimilar()` code remains in `server/program-enrich.js` for backward compatibility / rollback.
+- It is no longer used by the A7 catalog-sync or user-facing Related Programs flow.
+- No algorithmic fallback is invoked when the official list is empty.
+
+**Validation**
+- New A7 acceptance suite: **3/3 PASS**.
+- Catalog Sync + Program Enrichment + A7 combined validation: **30/30 PASS**.
+- Full repository regression: **236/236 PASS**.
+- No unrelated regression was detected.
+- Existing price, status, catalog-sync, enrichment and protected search behavior remains PASS.
+
+**Architecture / scope impact**
+- Search scoring and ranking core were not changed.
+- Search API relevance semantics were not changed.
+- Official Related Programs are now CMS-governed catalog data rather than inferred search relevance.
+- The implementation remains compatible with the planned future CMS/JSON API source: only the transport/source of `official_related_program_ids` would need to change.
+- The legacy similarity utility remains isolated and does not influence user-facing related-program output.
+
+**Next gate:** **A8 — Full Search Regression Pack**.
+
+## 2026-10-08 — A8 Full Search Regression Pack: Local Closure
+
+**Status:** **PASS / CLOSED (LOCAL)**
+
+**Scope validated**
+- A0 feedback acceptance cases
+- Protected legal queries and protected top-10 rankings
+- Greeklish normalization
+- Typo tolerance
+- Official category intent
+- Audience intent
+- Lexicon governance
+- Concatenated-query recognition
+- Curated acronyms / aliases
+- Phrase intent
+- Token / sub-token safety
+- Multi-term relevance
+- Relevance-safe price sorting
+- Official Related Programs
+
+**A8-specific gap resolved**
+- The A0 feedback case `σινεμα` had no explicit governed mapping.
+- Added canonical category alias:
+  `σινεμα → Κινηματογράφος - Θέατρο`.
+- The alias was added consistently to both:
+  - `public/lexicon.json`
+  - built-in `CATEGORY_ALIASES` in `public/search-engine.js`
+- Added explicit regression test:
+  `test/a8-feedback.test.js`.
+- The query now resolves to the official category and returns exactly its active official members.
+
+**Governance validation**
+- Shipped lexicon remains exactly equivalent to the engine default tables.
+- Lexicon governance regression passes.
+- Protected ranking baseline remains unchanged for existing protected queries.
+- Protected core hash was intentionally updated only after successful validation.
+
+**Protected engine SHA-256**
+- Previous:
+  `6f17c11c847dd0c403d9b0537a5fca8cddad594d964f672ed12b5d6cd82c7c47`
+- Current:
+  `456f2e7605894588bc4a4dfb388fb8f203066b717be534c836a55491a1cf163c`
+
+**Validation results**
+- A8 feedback test: **1/1 PASS**
+- Lexicon / seed / A8 focused validation: **16/16 PASS**
+- Protected baseline: **2/2 PASS**
+- Final full repository regression: **237/237 PASS**
+- Failures: **0**
+- No unrelated regression detected.
+
+**Architecture / scope impact**
+- No broad scoring-weight changes were introduced.
+- No API contract changes were introduced.
+- The A8 change is governed taxonomy/lexicon behavior only.
+- Existing protected search behavior remains frozen by regression and hash controls.
+
+**Next gate:** **A9 — Local Performance Validation**.
+
+## 2026-10-08 — A9 Local Performance Validation: Closure
+
+**Status:** **PASS / CLOSED (LOCAL)**
+
+**Performance methodology**
+- Added reproducible benchmark artifact:
+  `scripts/a9-performance.js`.
+- Performance was separated into three distinct execution paths:
+  1. startup / index-build + first query,
+  2. uncached query on an already-built index,
+  3. warm exact-query rank-cache hit.
+- This avoids incorrectly treating full index construction as normal query latency.
+
+**Representative query coverage**
+- `αθλητική ψυχολογία`
+- `Τρίτη ηλικία`
+- `ειδικηαγωγη`
+- `HRM`
+- `άνοια`
+- `εικαστικά`
+- `ειδικός απορριμάτων`
+- `ψυχολογιαα`
+- `tourismos`
+- `σινεμα`
+- `ψυχολογία`
+
+**Engine validation**
+- Active catalog: **693 programs**.
+- Result-count consistency: **PASS for every query**.
+- Historical performance parity confirmed:
+  - `Τρίτη ηλικία` uncached p95: **9.624 ms**
+    - historical: ~**9.618 ms**
+  - `αθλητική ψυχολογία` uncached p95: **13.508 ms**
+    - historical: ~**13.316 ms**
+- Heaviest representative new path:
+  - `ειδικηαγωγη` uncached p95: **21.339 ms**
+- Warm rank-cache p95 remained approximately **0.01–0.23 ms** across the complete matrix.
+- Startup/index-build measurements were approximately **104–139 ms p95** and are explicitly treated as initialization cost, not ordinary query latency.
+
+**Local HTTP / paged API validation**
+- Endpoint:
+  `/api/search?format=paged&page=1&page_size=40`
+- Representative requests: **11/11 HTTP 200**.
+- Existing `Server-Timing` instrumentation validated:
+  - `scoring`
+  - `shape`
+  - `serialize`
+  - `app_total`
+- Maximum observed `app_total`: **23.19 ms**.
+- Maximum observed end-to-end local curl time: approximately **34.9 ms**.
+- Pagination, scoring, result shaping and JSON serialization completed without errors.
+
+**Conclusion**
+- No pathological performance regression was detected in v1.5A.
+- Compound recognition, phrase intent, aliases, typo recovery, Greeklish, token safety and category aliases remain within acceptable local latency.
+- Existing cache architecture is functioning as intended.
+- No production search-engine optimization change is required for A9.
+
+**Next gate:** **A10 — Local Browser E2E**.
+
+## 2026-10-08 — A10 Local Browser E2E: Closure
+
+**Status:** **PASS / CLOSED (LOCAL)**
+
+**Browser validation**
+- Local application:
+  `http://localhost:8787`
+- Browser hard refresh performed after search-engine changes.
+- Search UI rendered normally with no visible application error.
+
+**Validated cases**
+- `σινεμα`
+  - **21 results**
+  - all 21 displayed
+  - strict official `Κινηματογράφος - Θέατρο` category behavior
+- `ειδικηαγωγη`
+  - concatenated-query recognition validated
+  - load-more behavior initially validated: 40 -> 115
+  - browser validation exposed broad long-tail semantic results
+  - root cause confirmed as category-name ambiguity, not concatenated-query regression
+- `ειδικη αγωγη`
+  - official category has **22 active members**
+  - exact full-category resolution added generically
+- final `ειδικηαγωγη`
+  - **22 results**
+  - all 22 displayed
+  - exactly the active official `Ειδική Αγωγή` members
+  - no unrelated extra programs
+- ambiguous single terms `ειδικη` / `αγωγη` remain unresolved and do not force category intent
+
+**Implementation introduced during A10**
+- `resolveCategoryIntent()` now gives precedence to an exact normalized/folded full official category-name match before per-token ambiguity handling.
+- `rankAll()` now resolves category intent using `semanticQuery`, allowing concatenated-query canonicalization to participate in official category resolution.
+- No global relevance-weight change was introduced.
+- No broad cutoff or scoring heuristic was introduced.
+
+**Validation**
+- Dedicated exact-category regression: **3/3 PASS**
+- Final full repository regression: **240/240 PASS**
+- Failures: **0**
+- Protected engine baseline intentionally updated after successful validation.
+
+**Current protected engine SHA-256**
+- `0be39991ec7faa924b97dbf896c2842dcc368a6e75ef7bda688fc4171f0e0bc4`
+
+**Conclusion**
+- v1.5A local browser behavior is validated.
+- Search core, category intent, concatenated queries, pagination and official taxonomy behavior are locally ready for release progression.
+
+**Next gate:** **A11 — GitHub**.

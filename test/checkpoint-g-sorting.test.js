@@ -148,3 +148,29 @@ test("Checkpoint G: unknown sort safely falls back to relevance order", () => {
 
   assert.deepEqual(slugs(actual), slugs(ranked));
 });
+
+test("A6: price sorting cannot introduce programs outside the relevance-qualified candidate set", () => {
+  const ranked = Engine.rank(programs, concepts, "ψυχολογία");
+  const rankedSlugs = new Set(slugs(ranked));
+
+  const sorted = Contract.sortResults(ranked, "price_asc");
+
+  assert.equal(
+    sorted.length,
+    ranked.length,
+    "price sorting must preserve the exact candidate-set size"
+  );
+
+  for (const p of sorted) {
+    assert.ok(
+      rankedSlugs.has(p.slug),
+      `price sorting introduced an unrelated program: ${p.slug}`
+    );
+  }
+
+  assert.deepEqual(
+    new Set(slugs(sorted)),
+    rankedSlugs,
+    "price sorting must preserve exactly the relevance-qualified candidate set"
+  );
+});

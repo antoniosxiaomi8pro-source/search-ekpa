@@ -121,6 +121,32 @@ function cleanText(s) {
 //               Read from the link itself: the text after it varies per page (badges,
 //               certification notes), so reading "text up to the next word" picked up
 //               extra words on 19 pages (2026-10-01).
+function parseOfficialRelatedProgramIds(html) {
+  const section = /<section\b[^>]*\bid=["']course-related_courses["'][^>]*>([\s\S]*?)<\/section>/i.exec(html);
+  if (!section) return [];
+
+  const ids = [];
+  const seen = new Set();
+
+  for (const match of section[1].matchAll(/<a\b[^>]*>/gi)) {
+    const tag = match[0];
+
+    const classMatch = /\bclass=["']([^"']*)["']/i.exec(tag);
+    if (!classMatch || !/\bcourse-card__link\b/.test(classMatch[1])) continue;
+
+    const idMatch = /\bdata-courseId=["'](\d+)["']/i.exec(tag);
+    if (!idMatch) continue;
+
+    const id = Number(idMatch[1]);
+    if (!Number.isFinite(id) || seen.has(id)) continue;
+
+    seen.add(id);
+    ids.push(id);
+  }
+
+  return ids;
+}
+
 function parsePageDetails(html) {
   const ids = [...html.matchAll(/\/apply\/(\d+)/g)].map((m) => Number(m[1]));
   const uniqueIds = [...new Set(ids)];
@@ -136,6 +162,7 @@ function parsePageDetails(html) {
   return {
     cms_id: uniqueIds.length === 1 ? uniqueIds[0] : null,
     direction,
+    official_related_program_ids: parseOfficialRelatedProgramIds(html),
   };
 }
 
@@ -344,14 +371,58 @@ function buildCandidate(programs, check, options = {}) {
       diff.new_added.push({ slug: p.slug, title: p.title, primary_area: p.primary_area, concepts: p.concepts });
     });
 
-    // Related programs last, once every program has its final categories/concepts/id.
+    // A7 — Official Related Programs.
+    //
+    // The EKPA course page is the only source of truth. Preserve its DOM order,
+    // resolve only programs that exist in the current catalog, exclude self and
+    // inactive programs, and expose at most 8. There is deliberately NO
+    // computeSimilar()/category/concept fallback.
+    const candidateById = new Map(
+      candidate
+        .filter((x) => x.id !== null && x.id !== undefined)
+        .map((x) => [Number(x.id), x])
+    );
+
     candidate.forEach((p) => {
-      if (!isActive(p) || !Enrich.isEmpty(p.similar_program_ids)) return;
-      const sim = Enrich.computeSimilar(p, candidate);
-      if (sim.length) {
-        p.similar_program_ids = sim;
-        diff.similar_filled.push({ slug: p.slug, count: sim.length });
+      const page = check.pages && check.pages[p.slug];
+
+      // A successful page fetch is authoritative, including an explicitly empty
+      // official-related section. Failed/unfetched pages preserve any previously
+      // stored official relationship rather than inventing replacements.
+      let source = null;
+
+      if (
+        page &&
+        page.http === 200 &&
+        Array.isArray(page.official_related_program_ids)
+      ) {
+        source = page.official_related_program_ids;
+      } else if (Array.isArray(p.official_related_program_ids)) {
+        source = p.official_related_program_ids;
       }
+
+      if (source === null) return;
+
+      const resolved = [];
+      const seen = new Set();
+
+      for (const rawId of source) {
+        const id = Number(rawId);
+
+        if (!Number.isFinite(id)) continue;
+        if (p.id !== null && p.id !== undefined && id === Number(p.id)) continue;
+        if (seen.has(id)) continue;
+
+        const related = candidateById.get(id);
+        if (!related || !isActive(related)) continue;
+
+        seen.add(id);
+        resolved.push(id);
+
+        if (resolved.length === 8) break;
+      }
+
+      p.official_related_program_ids = resolved;
     });
   }
 
