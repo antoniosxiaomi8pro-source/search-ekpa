@@ -28,15 +28,61 @@ function allQueries() {
 // Full ordered ranking (slug + score), not only the top 10.
 const fullRanking = (q) => Engine.rank(PROGRAMS, CONCEPTS, q).map((r) => r.slug + ":" + r._score);
 
-test("shipped lexicon.json: complete rankings are identical to the built-in lexicon, for every comparison query", () => {
+// A ranking change is allowed only when the shipped lexicon explicitly declares
+// the query (or one of its exact tokens) as a curated alias.
+function isCuratedAliasQuery(q) {
+  const folded = Engine.foldGreek(Engine.normalize(q));
+  if (!folded) return false;
+
+  const wholeQueryAliases = new Set(
+    (SEED.query_aliases || []).map((e) =>
+      Engine.foldGreek(Engine.normalize(e.alias))
+    )
+  );
+
+  if (wholeQueryAliases.has(folded)) return true;
+
+  const tokenAliases = new Set(
+    (SEED.token_aliases || []).map((e) =>
+      Engine.foldGreek(Engine.normalize(e.alias))
+    )
+  );
+
+  return folded
+    .split(" ")
+    .filter(Boolean)
+    .some((token) => tokenAliases.has(token));
+}
+
+test("shipped lexicon.json: only explicitly curated aliases may change built-in rankings", () => {
   Engine.resetLexicon();
+
   const queries = allQueries();
   const before = queries.map(fullRanking);
+
   Engine.setLexicon(SEED);
+
   const after = queries.map(fullRanking);
-  const diffs = queries.filter((q, i) => JSON.stringify(before[i]) !== JSON.stringify(after[i]));
-  assert.deepEqual(diffs, [], "queries whose ranking changed");
-  assert.ok(queries.length > 200, "query set should be large: " + queries.length);
+
+  const diffs = queries.filter(
+    (q, i) => JSON.stringify(before[i]) !== JSON.stringify(after[i])
+  );
+
+  const unexpectedDiffs = diffs.filter(
+    (q) => !isCuratedAliasQuery(q)
+  );
+
+  assert.deepEqual(
+    unexpectedDiffs,
+    [],
+    "queries whose ranking changed without an explicit curated alias"
+  );
+
+  assert.ok(
+    queries.length > 200,
+    "query set should be large: " + queries.length
+  );
+
   Engine.resetLexicon();
 });
 

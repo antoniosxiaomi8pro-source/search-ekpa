@@ -34,9 +34,25 @@ test("diffLexicons: added, removed and changed words", () => {
   c.stopwords.push("νέα");
   c.stopwords = c.stopwords.filter((w) => w !== "και");
   c.topics[0].programs.pop();
-  const kinds = diffLexicons(SEED, c).map((x) => x.kind + ":" + x.word).sort();
+
+  c.query_aliases.push({
+    alias: "νομοσ",
+    canonical: "legal"
+  });
+
+  c.token_aliases.push({
+    alias: "peopleops",
+    canonical: "human resources"
+  });
+
+  const kinds = diffLexicons(SEED, c)
+    .map((x) => x.kind + ":" + x.word)
+    .sort();
+
   assert.ok(kinds.includes("added:νέα") && kinds.includes("removed:και"));
   assert.ok(kinds.includes("changed:σεφ"), "editing a group's programs changes all its words");
+  assert.ok(kinds.includes("added:νομοσ"), "whole-query alias must be visible in preview diff");
+  assert.ok(kinds.includes("added:peopleops"), "token alias must be visible in preview diff");
 });
 
 test("no change: nothing differs and nothing is flagged", async () => {
@@ -60,6 +76,67 @@ test("a new audience word: its own query changes (expected), the top-3 is listed
   assert.ok(own.changes[0].total_after > 50);
   assert.equal(own.changes[0].top3.length, 3, "all three positions are new");
   assert.equal(own.changes[0].top3.every((e) => e.kind === "enters_from_outside"), true);
+});
+
+test("A2.1: a new token alias is a touched query and its ranking impact is previewed", async () => {
+  const c = clone(SEED);
+
+  c.token_aliases.push({
+    alias: "peopleops",
+    canonical: "human resources"
+  });
+
+  const r = await preview(c);
+
+  assert.ok(
+    r.changes.some(
+      (x) =>
+        x.kind === "added" &&
+        x.group === "Acronyms / token aliases" &&
+        x.word === "peopleops"
+    ),
+    "token alias must be reported as a lexicon change"
+  );
+
+  const own = r.groups.find(
+    (g) => g.label === "Λέξεις που άλλαξαν"
+  );
+
+  assert.ok(own, "touched-query group must exist");
+
+  const q = own.changes.find(
+    (x) => x.query === "peopleops"
+  );
+
+  assert.ok(q, "new alias query must be included in preview");
+
+  assert.ok(
+    q.total_after > 0,
+    "after the alias is applied it must resolve to real results"
+  );
+});
+
+test("A2.1: changing an alias canonical target is reported as changed", () => {
+  const c = clone(SEED);
+
+  const existing = c.token_aliases.find(
+    (e) => e.alias.toLowerCase() === "hrm"
+  );
+
+  assert.ok(existing, "HRM seed alias must exist");
+
+  existing.canonical = "management";
+
+  const changes = diffLexicons(SEED, c);
+
+  assert.ok(
+    changes.some(
+      (x) =>
+        x.kind === "changed" &&
+        x.group === "Acronyms / token aliases" &&
+        x.word.toLowerCase() === "hrm"
+    )
+  );
 });
 
 test("warning: an audience word that is already a category is shadowed", async () => {

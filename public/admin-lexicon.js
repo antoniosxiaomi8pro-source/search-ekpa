@@ -238,11 +238,166 @@
     return p;
   }
 
+  function aliasKey(value) {
+    var s = String(value || "").trim();
+    if (!s) return "";
+    if (window.EkpaSearch) {
+      try {
+        return window.EkpaSearch.foldGreek(
+          window.EkpaSearch.normalize(s)
+        );
+      } catch (e) {}
+    }
+    return s.toLowerCase();
+  }
+
+  function aliasTable(title, hint, key, tokenOnly) {
+    var wrap = document.createElement("div");
+    wrap.style.marginBottom = "18px";
+
+    var h = document.createElement("h4");
+    h.style.margin = "10px 0 4px";
+    h.textContent = title;
+    wrap.appendChild(h);
+
+    var help = document.createElement("div");
+    help.className = "hint";
+    help.style.marginBottom = "8px";
+    help.textContent = hint;
+    wrap.appendChild(help);
+
+    draft[key] = Array.isArray(draft[key]) ? draft[key] : [];
+
+    var table = document.createElement("table");
+    table.className = "data-table";
+    table.innerHTML =
+      "<thead><tr>" +
+      "<th>Alias</th>" +
+      "<th>Canonical intent / query</th>" +
+      "<th></th>" +
+      "</tr></thead>";
+
+    var tb = document.createElement("tbody");
+
+    draft[key].forEach(function (e, i) {
+      var tr = document.createElement("tr");
+
+      var tdAlias = document.createElement("td");
+      var tdCanonical = document.createElement("td");
+      var tdRemove = document.createElement("td");
+
+      var alias = document.createElement("input");
+      alias.className = "lex-input";
+      alias.value = e.alias || "";
+      alias.placeholder = tokenOnly ? "π.χ. HRM" : "π.χ. λεγαλ";
+      alias.addEventListener("change", function () {
+        e.alias = alias.value.trim();
+        rerender();
+      });
+
+      var canonical = document.createElement("input");
+      canonical.className = "lex-input";
+      canonical.value = e.canonical || "";
+      canonical.placeholder = tokenOnly
+        ? "π.χ. human resources"
+        : "π.χ. legal";
+      canonical.addEventListener("change", function () {
+        e.canonical = canonical.value.trim();
+        rerender();
+      });
+
+      var remove = document.createElement("button");
+      remove.type = "button";
+      remove.className = "btn btn-danger";
+      remove.textContent = "✕";
+      remove.title = "Διαγραφή";
+      remove.addEventListener("click", function () {
+        draft[key].splice(i, 1);
+        rerender();
+      });
+
+      tdAlias.appendChild(alias);
+      tdCanonical.appendChild(canonical);
+      tdRemove.appendChild(remove);
+
+      tr.appendChild(tdAlias);
+      tr.appendChild(tdCanonical);
+      tr.appendChild(tdRemove);
+      tb.appendChild(tr);
+    });
+
+    table.appendChild(tb);
+    wrap.appendChild(table);
+
+    var add = document.createElement("button");
+    add.type = "button";
+    add.className = "btn btn-secondary";
+    add.style.marginTop = "10px";
+    add.textContent = tokenOnly
+      ? "➕ Νέο acronym / token alias"
+      : "➕ Νέο whole-query alias";
+
+    add.addEventListener("click", function () {
+      draft[key].push({ alias: "", canonical: "" });
+      render();
+    });
+
+    wrap.appendChild(add);
+    return wrap;
+  }
+
+  function sectionAliases() {
+    var p = document.createElement("section");
+    p.className = "panel";
+
+    p.innerHTML =
+      "<h3 style='margin-top:0'>🔤 Query Aliases / Acronyms</h3>" +
+      "<div class='hint' style='margin-bottom:12px'>" +
+      "Ρητές, curated αντιστοιχίσεις αναζήτησης. " +
+      "Δεν γίνεται αυτόματη δημιουργία ή guessing acronyms. " +
+      "Κάθε αλλαγή περνά από Preview πριν αποθηκευτεί." +
+      "</div>";
+
+    p.appendChild(
+      aliasTable(
+        "Whole-query aliases",
+        "Αντιστοιχίζει ολόκληρο το query σε canonical query. Παράδειγμα: «λεγαλ» → «legal».",
+        "query_aliases",
+        false
+      )
+    );
+
+    p.appendChild(
+      aliasTable(
+        "Token / Acronym aliases",
+        "Αντιστοιχίζει μόνο ακριβές token μέσα σε query. Παράδειγμα: «HRM» → «human resources». Δεν ταιριάζει XHRM, myhrm ή HRM2026.",
+        "token_aliases",
+        true
+      )
+    );
+
+    return p;
+  }
+
   /* ---------- preview ---------- */
   function cleanDraft() {
     var d = clone(draft);
     d.stopwords = d.stopwords.map(function (w) { return w.trim(); }).filter(Boolean);
     d.category_words = d.category_words.filter(function (e) { return e.word.trim(); }).map(function (e) { return { word: e.word.trim(), category: e.category }; });
+
+    ["query_aliases", "token_aliases"].forEach(function (k) {
+      d[k] = (d[k] || [])
+        .map(function (e) {
+          return {
+            alias: String(e.alias || "").trim(),
+            canonical: String(e.canonical || "").trim()
+          };
+        })
+        .filter(function (e) {
+          return e.alias || e.canonical;
+        });
+    });
+
     ["audience_categories", "audience_programs", "topics"].forEach(function (k) {
       d[k] = d[k].filter(function (g) { return g.words.length || (g.programs && g.programs.length) || (g.categories && g.categories.length); });
     });
@@ -276,6 +431,43 @@
   }
   function problems(d) {
     var out = [];
+
+    var seenAliases = {};
+
+    [
+      ["query_aliases", "Whole-query alias", false],
+      ["token_aliases", "Token / Acronym alias", true]
+    ].forEach(function (cfg) {
+      (d[cfg[0]] || []).forEach(function (e) {
+        var alias = String(e.alias || "").trim();
+        var canonical = String(e.canonical || "").trim();
+
+        if (!alias || !canonical) {
+          out.push(cfg[1] + ": χρειάζονται και Alias και Canonical.");
+          return;
+        }
+
+        if (cfg[2] && /\s/.test(alias)) {
+          out.push(
+            "Token / Acronym alias «" + alias +
+            "»: το Alias πρέπει να είναι ακριβώς ένα token."
+          );
+        }
+
+        var k = aliasKey(alias);
+
+        if (seenAliases[k]) {
+          out.push(
+            "Το alias «" + alias +
+            "» υπάρχει περισσότερες από μία φορές (" +
+            seenAliases[k] + " / " + cfg[1] + ")."
+          );
+        } else {
+          seenAliases[k] = cfg[1];
+        }
+      });
+    });
+
     [["audience_categories", "categories", "Κοινό → κατηγορίες"], ["audience_programs", "programs", "Κοινό → προγράμματα"], ["topics", "programs", "Θέματα"]].forEach(function (x) {
       d[x[0]].forEach(function (g) {
         var name = x[2] + " «" + (g.words.slice(0, 2).join(", ") || "χωρίς λέξεις") + "»";
@@ -352,6 +544,7 @@
     root.appendChild(sectionCategoryWords());
     root.appendChild(sectionAudience());
     root.appendChild(sectionTopics());
+    root.appendChild(sectionAliases());
     $("#lexPreviewBtn").addEventListener("click", doPreview);
     $("#lexSaveBtn").addEventListener("click", doSave);
     $("#lexResetBtn").addEventListener("click", function () { if (confirm("Να χαθούν οι αλλαγές που δεν έχουν αποθηκευτεί;")) { draft = clone(serverLex); rerender(); } });

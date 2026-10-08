@@ -29,6 +29,8 @@ function entriesOf(lex) {
   (lex.audience_categories || []).forEach((g) => (g.words || []).forEach((w) => add("Κοινό → κατηγορίες", w, [g.categories])));
   (lex.audience_programs || []).forEach((g) => (g.words || []).forEach((w) => add("Κοινό → προγράμματα", w, [g.programs, g.scan_terms || null])));
   (lex.topics || []).forEach((g) => (g.words || []).forEach((w) => add("Θέματα", w, [g.programs])));
+  (lex.query_aliases || []).forEach((e) => add("Query aliases", e.alias, e.canonical));
+  (lex.token_aliases || []).forEach((e) => add("Acronyms / token aliases", e.alias, e.canonical));
   return out;
 }
 

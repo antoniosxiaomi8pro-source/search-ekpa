@@ -135,6 +135,136 @@
   // every alias must be explicitly validated before it becomes searchable.
   const QUERY_ALIASES = {};
 
+  // Explicit curated token-level aliases loaded from lexicon.json.
+  // Unlike generic acronym inference, only exact normalized tokens that
+  // appear in this table may be expanded.
+  const TOKEN_ALIASES = {};
+
+  let compoundIndexCache = new WeakMap();
+
+  function collectCompoundPhrases(programs, concepts) {
+    const out = [];
+    const add = (phrase, source) => {
+      const folded = foldGreek(normalize(phrase));
+      if (!folded) return;
+      out.push({ phrase: folded, source });
+    };
+
+    (programs || []).forEach((p) => {
+      add(p.primary_area, "primary_area");
+      (p.areas_of_study || []).forEach((area) => add(area, "areas_of_study"));
+    });
+
+    Object.entries(concepts || {}).forEach(([key, terms]) => {
+      (terms || []).forEach((term) => add(term, "concept:" + key));
+    });
+
+    Object.keys(CATEGORY_ALIASES).forEach((term) => add(term, "lexicon:category"));
+    Object.keys(AUDIENCE_MULTI_CATEGORY_ALIASES).forEach((term) => add(term, "lexicon:audience_category"));
+    Object.keys(AUDIENCE_PROGRAM_ALIASES).forEach((term) => add(term, "lexicon:audience_program"));
+    Object.keys(TOPIC_ALIASES).forEach((term) => add(term, "lexicon:topic"));
+    Object.values(QUERY_ALIASES).forEach((term) => add(term, "lexicon:query_alias_canonical"));
+
+    return out;
+  }
+
+  function buildCompoundIndex(programs, concepts) {
+    const cached = compoundIndexCache.get(programs);
+    if (cached && cached.concepts === concepts) return cached.index;
+
+    const phrases = collectCompoundPhrases(programs, concepts);
+    const singles = new Set();
+    const candidates = new Map();
+
+    phrases.forEach(({ phrase, source }) => {
+      const tokens = phrase.split(" ").filter(Boolean);
+      const meaningful = tokens.filter((w) => w.length >= 2 && !STOPWORDS.has(w));
+
+      if (tokens.length === 1) {
+        singles.add(tokens[0]);
+        return;
+      }
+
+      if (meaningful.length < 2) return;
+
+      const joined = tokens.join("");
+      if (joined.length < 6) return;
+
+      if (!candidates.has(joined)) candidates.set(joined, new Map());
+      const owners = candidates.get(joined);
+      if (!owners.has(phrase)) owners.set(phrase, new Set());
+      owners.get(phrase).add(source);
+    });
+
+    const index = new Map();
+
+    candidates.forEach((owners, joined) => {
+      if (singles.has(joined)) return;
+      if (owners.size !== 1) return;
+
+      const [canonical, sources] = owners.entries().next().value;
+      index.set(joined, {
+        canonical,
+        sources: Array.from(sources).sort()
+      });
+    });
+
+    compoundIndexCache.set(programs, { concepts, index });
+    return index;
+  }
+
+  function resolveConcatenatedQuery(programs, concepts, query) {
+    const base = foldGreek(normalize(query));
+    if (!base) return null;
+
+    const index = buildCompoundIndex(programs, concepts);
+    const tokens = base.split(" ").filter(Boolean);
+    const resolved = [];
+    let changed = false;
+
+    tokens.forEach((token) => {
+      const hit = index.get(token);
+      if (!hit) {
+        resolved.push(token);
+        return;
+      }
+      resolved.push(...hit.canonical.split(" "));
+      changed = true;
+    });
+
+    return changed ? resolved.join(" ") : null;
+  }
+
+  function resolveCuratedTokenAliases(query) {
+    const base = foldGreek(normalize(query));
+    if (!base) return null;
+
+    const tokens = base.split(" ").filter(Boolean);
+    const resolved = [];
+    let changed = false;
+
+    tokens.forEach((token) => {
+      const target = TOKEN_ALIASES[token];
+
+      if (!target) {
+        resolved.push(token);
+        return;
+      }
+
+      const canonical = foldGreek(normalize(target));
+
+      if (!canonical) {
+        resolved.push(token);
+        return;
+      }
+
+      resolved.push(...canonical.split(" ").filter(Boolean));
+      changed = true;
+    });
+
+    return changed ? resolved.join(" ") : null;
+  }
+
   // A query is checked in both its normal form AND (if it looks like Latin-script Greek)
   // a transliterated-to-Greek form. Both variants get folded, so "psixologia" and
   // "ψυχολογία" converge to the same canonical string ("ψιχολογια").
@@ -1006,6 +1136,7 @@
       topicSets: cloneJson(TOPIC_SETS),
       topicAliases: cloneJson(TOPIC_ALIASES),
       queryAliases: cloneJson(QUERY_ALIASES),
+      tokenAliases: cloneJson(TOKEN_ALIASES),
       scan,
     };
   }
@@ -1021,11 +1152,13 @@
     replaceContents(TOPIC_SETS, t.topicSets);
     replaceContents(TOPIC_ALIASES, t.topicAliases);
     replaceContents(QUERY_ALIASES, t.queryAliases);
+    replaceContents(TOKEN_ALIASES, t.tokenAliases);
     Object.keys(AUDIENCE_SCAN_REGEX).forEach((k) => delete AUDIENCE_SCAN_REGEX[k]);
     Object.keys(t.scan).forEach((id) => { const re = buildScanRegex(t.scan[id]); if (re) AUDIENCE_SCAN_REGEX[id] = re; });
     indexCache = new WeakMap();
     categoryIndexCache = new WeakMap();
     trustedTypoVocabularyCache = new WeakMap();
+    compoundIndexCache = new WeakMap();
   }
 
   // Readable lexicon -> the engine's (folded) tables. Throws Error with a Greek message when
@@ -1051,7 +1184,7 @@
     };
     const id = (g, where) => { if (!g || typeof g.id !== "string" || !/^[a-z0-9_-]{1,40}$/.test(g.id)) fail("άκυρο id στο " + where + "."); return g.id; };
 
-    const t = { stopwords: new Set(), category: {}, audienceMulti: {}, audienceSets: {}, audienceAliases: {}, topicSets: {}, topicAliases: {}, queryAliases: {}, scan: {} };
+    const t = { stopwords: new Set(), category: {}, audienceMulti: {}, audienceSets: {}, audienceAliases: {}, topicSets: {}, topicAliases: {}, queryAliases: {}, tokenAliases: {}, scan: {} };
     const owner = {}; // folded word -> which table owns it
     const claim = (f, table, original) => {
       if (owner[f] && owner[f] !== table) fail("η λέξη «" + original + "» υπάρχει και στο «" + owner[f] + "» και στο «" + table + "».");
@@ -1115,6 +1248,35 @@
       t.queryAliases[alias] = e.canonical.trim();
       claim(alias, "query_aliases", e.alias);
     });
+
+    const tokenAliases = lex.token_aliases === undefined ? [] : lex.token_aliases;
+    if (!Array.isArray(tokenAliases)) fail("το token_aliases δεν είναι λίστα.");
+
+    tokenAliases.forEach((e) => {
+      if (!e || typeof e !== "object" || Array.isArray(e)) {
+        fail("άκυρη εγγραφή στο token_aliases.");
+      }
+
+      const alias = word(e.alias, "token_aliases.alias");
+
+      if (alias.includes(" ")) {
+        fail("το token_aliases.alias πρέπει να είναι ακριβώς ένα token.");
+      }
+
+      if (typeof e.canonical !== "string" || !e.canonical.trim()) {
+        fail("άκυρο canonical στο token_aliases.");
+      }
+
+      if (
+        t.tokenAliases[alias] &&
+        t.tokenAliases[alias] !== e.canonical.trim()
+      ) {
+        fail("το ίδιο token alias οδηγεί σε δύο διαφορετικά canonical queries.");
+      }
+
+      t.tokenAliases[alias] = e.canonical.trim();
+      claim(alias, "token_aliases", e.alias);
+    });
     // A word that is both a stopword and an alias could never act as an alias (stopwords are dropped first).
     Object.keys(owner).forEach((f) => {
       if (owner[f] !== "stopwords" && t.stopwords.has(f)) fail("η λέξη «" + f + "» είναι και stopword και λέξη αντιστοίχισης.");
@@ -1132,6 +1294,7 @@
       audience_words: Object.keys(t.audienceMulti).length + Object.keys(t.audienceAliases).length,
       topic_words: Object.keys(t.topicAliases).length,
       query_aliases: Object.keys(t.queryAliases).length,
+      token_aliases: Object.keys(t.tokenAliases).length,
     };
   }
   function resetLexicon() { applyTables(DEFAULT_TABLES); }
@@ -1295,9 +1458,14 @@
   // Full ranking of all matching programs: [{ entryIndex, s }] sorted by score desc.
   function rankAll(programs, concepts, query, skipTrustedTypoRecovery) {
     query = String(query || "").slice(0, MAX_QUERY_LENGTH);
+    const tokenAliasResolution = resolveCuratedTokenAliases(query);
+    if (tokenAliasResolution) query = tokenAliasResolution;
+
+    const concatenatedResolution = resolveConcatenatedQuery(programs, concepts, query);
+    const semanticQuery = concatenatedResolution || query;
 
     if (!skipTrustedTypoRecovery) {
-      const trustedCorrection = resolveTrustedTypo(programs, concepts, query);
+      const trustedCorrection = resolveTrustedTypo(programs, concepts, semanticQuery);
       if (trustedCorrection) {
         return rankAll(programs, concepts, trustedCorrection, true);
       }
@@ -1309,8 +1477,11 @@
     const cached = idx.rankCache.get(key);
     if (cached) { idx.rankCache.delete(key); idx.rankCache.set(key, cached); return cached; }
 
-    const variants = queryVariants(query);
-    const { termsFlat: terms, byWord } = expandQueryDetailed(query, concepts, idx.vocab);
+    const variants = Array.from(new Set([
+      ...queryVariants(query),
+      ...queryVariants(semanticQuery)
+    ]));
+    const { termsFlat: terms, byWord } = expandQueryDetailed(semanticQuery, concepts, idx.vocab);
     const ranked = [];
     if (variants.length) {
       // Checkpoint A: single official category. Checkpoint B: the SAME word
@@ -1414,5 +1585,6 @@
     STOPWORDS, buildCategoryIndex, resolveCategoryIntent, programBelongsToCategory,
     resolveAudienceMultiCategoryIntent, resolveAudienceProgramIntent, explicitlyTargetsPhilologists, resolveTopicIntent,
     setLexicon, resetLexicon, compileLexicon, getLexiconTables, getDefaultLexiconTables, LEXICON_SCHEMA_VERSION,
+    buildCompoundIndex, resolveConcatenatedQuery, resolveCuratedTokenAliases,
   };
 });

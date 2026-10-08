@@ -179,5 +179,11 @@
       "alias": "λεγαλ",
       "canonical": "legal"
     }
+  ],
+  "token_aliases": [
+    {
+      "alias": "hrm",
+      "canonical": "human resources"
+    }
   ]
 }
