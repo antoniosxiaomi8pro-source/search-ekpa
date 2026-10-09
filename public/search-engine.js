@@ -608,10 +608,19 @@
   // on its own.
   const COVERAGE_BONUS_PER_EXTRA_CONCEPT = 70;
 
-  function collisionExclusionsFor(query) {
-    const key = foldGreek(normalize(String(query || "")));
-    const blocked = COLLISION_EXCLUSIONS[key];
-    return blocked && blocked.length ? new Set(blocked) : null;
+  function collisionExclusionsFor(query, expandedTerms) {
+    const out = new Set();
+
+    const addFor = (value) => {
+      const key = foldGreek(normalize(String(value || "")));
+      const blocked = COLLISION_EXCLUSIONS[key];
+      if (blocked && blocked.length) blocked.forEach((tok) => out.add(tok));
+    };
+
+    addFor(query);
+    (expandedTerms || []).forEach(addFor);
+
+    return out.size ? out : null;
   }
 
   function rawContainsSafe(text, tokenSet, raw, blockedTokens) {
@@ -629,7 +638,13 @@
 
     for (const tok of tokenSet) {
       if (blockedTokens.has(tok)) continue;
-      if (tok.includes(raw)) return true;
+
+      if (tok === raw) return true;
+
+      if (tok.startsWith(raw)) {
+        const ratio = raw.length / tok.length;
+        if (ratio >= MIN_TERM_TOKEN_OVERLAP) return true;
+      }
     }
     return false;
   }
@@ -702,7 +717,7 @@
   // only for ad-hoc use/tests; search()/rank() use the precomputed index.
   function score(p, q, CONCEPTS, vocab) {
     const { termsFlat: terms, byWord } = expandQueryDetailed(q, CONCEPTS, vocab);
-    const blockedTokens = collisionExclusionsFor(q);
+    const blockedTokens = collisionExclusionsFor(q, terms);
     return scoreEntry(buildEntry(p), queryVariants(q), terms, byWord, blockedTokens);
   }
 
@@ -1652,7 +1667,7 @@
       ...(phraseIntent ? phraseIntent.phrases : [])
     ]));
     const { termsFlat: terms, byWord } = expandQueryDetailed(semanticQuery, concepts, idx.vocab);
-    const blockedTokens = collisionExclusionsFor(semanticQuery);
+    const blockedTokens = collisionExclusionsFor(semanticQuery, terms);
 
     const ranked = [];
     if (variants.length) {
