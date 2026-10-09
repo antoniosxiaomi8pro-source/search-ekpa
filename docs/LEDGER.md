@@ -313,12 +313,12 @@ R5    Πηγή feed IT                            ⬜ (αναμονή Γιάνν
 | **A8 — Full Search Regression Pack** | **PASS / CLOSED** | Full v1.5A regression corpus completed. Covers A0 feedback cases, protected legal, Greeklish, typo tolerance, official categories, audience intents, lexicon governance, concatenated queries, acronyms, phrase intent, token safety, multi-term relevance, price sorting and official related programs. Added governed `σινεμα → Κινηματογράφος - Θέατρο` category alias and explicit A8 regression coverage. Final full regression **237/237 PASS**. Protected engine SHA updated to `456f2e7605894588bc4a4dfb388fb8f203066b717be534c836a55491a1cf163c`. |
 | **A9 — Local Performance Validation** | **PASS / CLOSED** | Full v1.5A local performance validation completed. Reproducible engine benchmark separates startup/index-build, uncached query execution and warm rank-cache hits. Representative baseline queries remain aligned with historical performance (`Τρίτη ηλικία` uncached p95 9.624 ms vs ~9.618 ms historical; `αθλητική ψυχολογία` 13.508 ms vs ~13.316 ms historical). All result-count consistency checks PASS. Warm-cache p95 remains below ~0.23 ms across the matrix. Local paged `/api/search` validation returned HTTP 200 for all 11 representative queries; maximum observed `app_total` 23.19 ms. No pathological v1.5A performance regression detected. |
 | **A10 — Local Browser E2E** | **PASS / CLOSED** | Full local browser validation completed for v1.5A. Verified search rendering, concatenated query handling, exact official-category behavior, load-more pagination and UI stability. `σινεμα` returned exactly 21 official `Κινηματογράφος - Θέατρο` members. `ειδικηαγωγη` initially exposed broad long-tail relevance, leading to a governed generic fix: exact full-category names now resolve authoritatively before per-word ambiguity, and concatenated queries route category intent through `semanticQuery`. Final `ειδικηαγωγη` browser result: exactly 22 active official `Ειδική Αγωγή` members, no unrelated extras. Dedicated exact-category tests **3/3 PASS**; final full regression **240/240 PASS**. |
-| **A11 — GitHub** | **NOT STARTED as final v1.5A gate** | Υπάρχουν incremental pushes για A1/A2/A2.1, αλλά το τελικό v1.5A GitHub gate κλείνει μόνο μετά A3–A10. |
-| **A12 — Railway Testing/Staging** | **NOT STARTED as full v1.5A gate** | Functional E2E + regression + performance E2E για ολόκληρη v1.5A. |
-| **A13 — testing.elearningekpa.gr / GTM Browser Validation** | **NOT STARTED** | Μετά το A12. Δεν αλλάζουμε GTM αν δεν χρειάζεται. |
-| **A14 — Documentation / IT Handoff** | **NOT STARTED** | Τελικό gate μετά από πλήρες PASS. |
+| **A11 — GitHub** | **PASS / CLOSED** | Final v1.5A changes committed and pushed to `main`. Canonical sequence includes `3db935d` (`feat(search): complete v1.5A local validation`), `668d38c` (`fix(search): prevent substring collision leaks in expanded intents`) and `b6931f3` (`fix(catalog): remove incorrect ASEP tag from IPSAS program`). Latest catalog correction commit verified on GitHub. |
+| **A12 — Railway Testing/Staging** | **PASS / CLOSED** | Railway deployment healthy and validated. `/health` returned HTTP 200 with 702 programs / 693 active. Search collision fix validated live: `άνοια` returned 4 relevant results and `Τρίτη ηλικία` returned 5 relevant results with prior false-positive leakage removed. Persisted catalog mismatch was traced to `/data/programs.json`; a backup was created, the validated package catalog was copied into the Railway volume and the service restarted. Live verification confirmed the IPSAS record no longer contains `ασεπ` in `tags` or `search_text`. Query `ΑΣΕΠ` returns 34 results with IPSAS reduced from rank 1 to rank 34. Final local regression after the catalog correction: **240/240 PASS**. |
+| **A13 — testing.elearningekpa.gr / GTM Browser Validation** | **PASS / CLOSED** | Browser validation was completed through GTM Preview against the Railway testing backend. No GTM production publish was performed by design. Subsequent search-engine and persisted-catalog corrections were validated directly on Railway without changing the GTM integration contract. |
+| **A14 — Documentation / IT Handoff** | **IN PROGRESS** | Preparing a new validated full-repository production handoff ZIP for EKPA IT. The previous handoff archive is stale and must not be used. The new package must include the current GitHub state, final manuals, checksums, archive integrity validation and explicit deployment guidance for existing persistent `DATA_DIR`, including synchronization of `/data/programs.json` so an older persisted catalog cannot override the packaged corrected catalog. |
 
-**Άμεσο επόμενο βήμα:** **A5.0 — Current-behavior audit για Multi-term Relevance & Term Importance**, με πρώτο acceptance case `ειδικός απορριμάτων`. Πρώτα καταγράφεται το σημερινό ranking/scoring και η συνεισφορά κάθε query term, χωρίς αλλαγή κώδικα ή dataset.
+**Άμεσο επόμενο βήμα:** **A14 — Documentation / IT Handoff**. Final Git commit/push of the canonical release ledger, then creation and full integrity validation of the new EKPA IT handoff package.
 
 ### Phase 2 — v1.5B: Concept Governance
 
@@ -730,3 +730,88 @@ R5    Πηγή feed IT                            ⬜ (αναμονή Γιάνν
 - Search core, category intent, concatenated queries, pagination and official taxonomy behavior are locally ready for release progression.
 
 **Next gate:** **A11 — GitHub**.
+
+## 2026-10-08 — A11 GitHub: Closure
+
+**Status:** **PASS / CLOSED**
+
+- Final v1.5A commit: `3db935d`
+- Commit message: `feat(search): complete v1.5A local validation`
+- Branch: `main`
+- Push to GitHub completed successfully.
+
+## 2026-10-08 — A12 Railway Testing/Staging: Closure
+
+**Status:** **PASS / CLOSED**
+
+- Railway `/health`: HTTP 200
+- Catalog: 702 programs / 693 active
+- Search engine SHA matched local package.
+- Railway runtime lexicon initially differed from packaged `public/lexicon.json`.
+- Root cause: persisted `DATA_DIR=/data` lexicon from Railway volume intentionally survived redeploy.
+- Backup created: `/data/lexicon.json.bak-2026-10-08-a12`
+- Persisted lexicon synchronized with packaged lexicon.
+- Final packaged/persisted SHA-256:
+  `d11812e62220e3dbf9ed9a78a5ec4e3be89a48e9a71087f25c54e5591283b9aa`
+- Service restarted and final Railway smoke test PASS:
+  - `σινεμα` → 21
+  - `Τρίτη ηλικία` → 6
+  - `HRM` → 38
+  - `ειδικός απορριμάτων` → 1
+  - `ειδικηαγωγη` → 22
+
+**Next gate:** **A13 — testing.elearningekpa.gr / GTM Browser Validation**.
+
+## 2026-10-08 — A13 testing.elearningekpa.gr / GTM Browser Validation: Closure
+
+**Status:** **PASS / CLOSED**
+
+- Validation performed through GTM Preview on `testing.elearningekpa.gr`.
+- Testing used the validated Railway backend.
+- Final browser validation:
+  - `σινεμα` → 21
+  - `Τρίτη ηλικία` → 6
+  - `HRM` → 38
+  - `ειδικός απορριμάτων` → 1
+  - `ειδικηαγωγη` → 22
+- Results matched the validated Local and Railway behavior.
+- No GTM production publish was performed.
+- Testing environment remains the testing area; production deployment is delegated to EKPA IT.
+
+**Next gate:** **A14 — Documentation / IT Handoff**.
+
+## 2026-10-09 — v1.5A Release Hardening / Final Validation
+
+**Status:** **PASS / CLOSED before IT packaging**
+
+Post-validation corrections completed after the original A11–A13 closure:
+
+- Search collision hardening committed as `668d38c`:
+  `fix(search): prevent substring collision leaks in expanded intents`.
+- Live Railway validation after the search fix:
+  - `άνοια` → 4 relevant results.
+  - `Τρίτη ηλικία` → 5 relevant results.
+  - prior unrelated substring leakage removed.
+- IPSAS / ASEP catalog correction committed as `b6931f3`:
+  `fix(catalog): remove incorrect ASEP tag from IPSAS program`.
+- Railway persisted catalog issue identified:
+  `/data/programs.json` was overriding the corrected packaged `public/programs.json`.
+- Backup created before synchronization:
+  `/data/programs.json.bak-asep-2026-10-09`.
+- Corrected catalog synchronized to Railway persistent `/data/programs.json`.
+- Live verification after restart:
+  - IPSAS `ασεπ` in `tags`: false.
+  - IPSAS `ασεπ` in `search_text`: false.
+  - `ΑΣΕΠ` total results: 34.
+  - IPSAS moved from rank 1 to rank 34.
+- Final local regression after all current code/catalog corrections:
+  **240/240 PASS, 0 failures**.
+- Canonical release commits now include:
+  - `3db935d` — v1.5A local validation.
+  - `668d38c` — expanded-intent collision hardening.
+  - `b6931f3` — IPSAS / ASEP catalog correction.
+  - current documentation release commit — final ledger / IT handoff preparation.
+
+**Release rule for EKPA IT:** an existing persistent `DATA_DIR` must be checked during deployment. An older `/data/programs.json` must not silently override the corrected packaged catalog.
+
+**Next gate:** creation and integrity validation of the new EKPA IT handoff package.
